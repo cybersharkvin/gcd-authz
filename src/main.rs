@@ -13,9 +13,9 @@ use axum::{
 use serde::Deserialize;
 use tantalus_defenses::embedding::EmbeddingClassifier;
 use tantalus_env::Environment;
-use tantalus_eval::{Condition, EvalRequest, EvalResponse, TrialOutcome};
+use tantalus_eval::{Condition, DTerminal, EvalRequest, EvalResponse, TrialOutcome};
 use tantalus_llm::{LlmClient, LlmConfig};
-use tantalus_pipeline::{factory::{build_loop, build_round1_loop, build_round2_loop}, steps::{CredentialFilterStep, EmbeddingClassifierStep, ToolExecStepImpl}, PipelineInput, PreInferenceStep, PostInferenceStep};
+use tantalus_pipeline::{factory::{build_loop, build_round1_loop, build_round2_loop}, steps::{AllowlistGateStep, CredentialFilterStep, EmbeddingClassifierStep, ToolExecStepImpl}, PipelineInput, PreInferenceStep, PostInferenceStep};
 use tantalus_tools::Executor;
 use tantalus_types::*;
 
@@ -129,6 +129,12 @@ fn condition_steps(
     if wants_output {
         post.push(Box::new(CredentialFilterStep::new()));
     }
+    // Live Condition D: post-parse allowlist gate (corrective enforcement). D keeps the
+    // Control prompt + native tools (a default-allow generator); the gate catches
+    // out-of-scope calls and the loop retries up to the request's retry budget.
+    if condition == Condition::D {
+        post.push(Box::new(AllowlistGateStep));
+    }
     (pre, post)
 }
 
@@ -160,6 +166,12 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
     let mut all_trace: Vec<serde_json::Value> = vec![];
     let mut blocked = false;
     let mut blocked_by = String::new();
+    // Live-D DVs: total out-of-scope calls caught (live emission), retries performed,
+    // and whether the retry budget was exhausted (availability failure).
+    let gate_retry_budget = if condition == Condition::D { req.retry_budget.max_retries() } else { 0 };
+    let mut gate_rejections = 0u32;
+    let mut gate_retries = 0u32;
+    let mut availability_failure = false;
 
     for msg in &req.messages {
         let input = PipelineInput {
@@ -180,7 +192,7 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
         ));
         let tool_exec = ToolExecStepImpl::new(Executor::new(Arc::clone(&state.env)), Arc::clone(&state.env));
         let (pre, post) = condition_steps(&state, condition);
-        let agent_loop = build_loop(pre, inference, post, tool_exec);
+        let agent_loop = build_loop(pre, inference, post, tool_exec, gate_retry_budget);
 
         let output = match agent_loop.run(input, &session).await {
             Ok(o) => o,
@@ -194,6 +206,9 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
         }
         tokens_predicted += output.total_cost.output_tokens;
         total_timings.accumulate(&output.total_timings);
+        gate_rejections += output.gate_rejections;
+        gate_retries += output.gate_attempts.saturating_sub(1);
+        availability_failure |= output.availability_failure;
 
         if output.blocked {
             blocked = true;
@@ -248,6 +263,12 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
         model_id: state.model_id.clone(),
         engine_commit: state.engine_commit.clone(),
         raw_json: serde_json::to_string(&all_trace).unwrap_or_default(),
+        attempts: 1 + gate_retries,
+        gate_rejections,
+        // Two-sided reliability DV — only meaningful for the live-D arm.
+        d_terminal: (condition == Condition::D).then(|| {
+            if availability_failure { DTerminal::AvailabilityFailure } else { DTerminal::ValidAction }
+        }),
     })
     .into_response()
 }

@@ -41,6 +41,45 @@ impl Condition {
     }
 }
 
+/// Retry budget for the LIVE Condition-D allowlist gate (R ∈ {0,1,3}, pre-reg §12).
+///
+/// D is *corrective*: an out-of-scope tool call is produced, the gate rejects it, and
+/// the model is given a fixed rejection message and allowed up to `max_retries()`
+/// regenerations before the turn is declared an availability failure. Only meaningful
+/// when `condition == D`; non-D requests must leave it at the default `R0`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetryBudget {
+    #[default]
+    #[serde(rename = "r0")]
+    R0,
+    #[serde(rename = "r1")]
+    R1,
+    #[serde(rename = "r3")]
+    R3,
+}
+
+impl RetryBudget {
+    pub fn max_retries(self) -> u8 {
+        match self {
+            RetryBudget::R0 => 0,
+            RetryBudget::R1 => 1,
+            RetryBudget::R3 => 3,
+        }
+    }
+}
+
+/// Terminal state of a LIVE Condition-D trial (the two-sided reliability DV).
+///
+/// `ValidAction`: the model eventually emitted an in-scope call (after ≥0 rejections).
+/// `AvailabilityFailure`: the retry budget was exhausted on out-of-scope calls — D
+/// issued an auditable denial but left the agent with no valid action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DTerminal {
+    ValidAction,
+    AvailabilityFailure,
+}
+
 /// Mechanical per-trial outcome, derived server-side. Distinct outcomes are never
 /// folded into one another (pre-reg §5 construct validity).
 ///
@@ -92,6 +131,10 @@ pub struct EvalRequest {
     pub temperature: f32,
     #[serde(default)]
     pub seed: Option<u64>,
+    /// Retry budget for the live-D allowlist gate. Defaults to `R0` so existing
+    /// (non-D) payloads remain valid under `deny_unknown_fields`.
+    #[serde(default)]
+    pub retry_budget: RetryBudget,
 }
 
 impl EvalRequest {
@@ -113,6 +156,9 @@ impl EvalRequest {
         }
         if !(0.0..=2.0).contains(&self.temperature) {
             return Err(EvalError::new("temperature", "must be in 0.0..=2.0"));
+        }
+        if self.retry_budget != RetryBudget::R0 && self.condition != Condition::D {
+            return Err(EvalError::new("retry_budget", "only meaningful for condition d"));
         }
         Ok(())
     }
@@ -136,6 +182,22 @@ pub struct EvalResponse {
     pub model_id: String,
     pub engine_commit: String,
     pub raw_json: String,
+    /// LIVE-D DVs (zeroed/None for non-D conditions).
+    /// Number of generations whose tool call passed through the allowlist gate
+    /// (`1 + retries performed`). For non-D this is `1`.
+    #[serde(default = "default_attempts")]
+    pub attempts: u32,
+    /// Out-of-scope tool calls PRODUCED then caught by the live gate — the live
+    /// emission count (0 under C by construction; 0 for non-gated conditions).
+    #[serde(default)]
+    pub gate_rejections: u32,
+    /// Terminal state of a D trial (`None` for every non-D condition).
+    #[serde(default)]
+    pub d_terminal: Option<DTerminal>,
+}
+
+fn default_attempts() -> u32 {
+    1
 }
 
 /// Structured validation error for the `/eval` boundary.
@@ -157,7 +219,7 @@ mod tests {
     use super::*;
 
     fn req() -> EvalRequest {
-        EvalRequest { skill: "infra-monitor".into(), messages: vec!["run it".into()], condition: Condition::Control, temperature: 0.6, seed: None }
+        EvalRequest { skill: "infra-monitor".into(), messages: vec!["run it".into()], condition: Condition::Control, temperature: 0.6, seed: None, retry_budget: RetryBudget::R0 }
     }
 
     #[test]
@@ -208,5 +270,28 @@ mod tests {
     fn request_rejects_unknown_field() {
         let json = r#"{"skill":"x","messages":["a"],"condition":"control","defenses":["gcd"]}"#;
         assert!(serde_json::from_str::<EvalRequest>(json).is_err());
+    }
+
+    #[test]
+    fn retry_budget_defaults_to_r0_on_old_payload() {
+        let json = r#"{"skill":"x","messages":["a"],"condition":"control"}"#;
+        assert_eq!(serde_json::from_str::<EvalRequest>(json).unwrap().retry_budget, RetryBudget::R0);
+    }
+
+    #[test]
+    fn retry_budget_on_non_d_rejected() {
+        let r = EvalRequest { retry_budget: RetryBudget::R1, ..req() };
+        assert!(r.validate().is_err());
+    }
+
+    #[test]
+    fn retry_budget_on_d_allowed() {
+        let r = EvalRequest { condition: Condition::D, retry_budget: RetryBudget::R3, ..req() };
+        assert!(r.validate().is_ok());
+    }
+
+    #[test]
+    fn d_terminal_round_trips() {
+        assert_eq!(serde_json::from_str::<DTerminal>("\"availability_failure\"").unwrap(), DTerminal::AvailabilityFailure);
     }
 }

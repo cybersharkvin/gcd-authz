@@ -93,6 +93,32 @@ impl PostInferenceStep for CredentialFilterStep {
     }
 }
 
+// --- Condition D (live): post-parse allowlist gate ---
+
+/// LIVE Condition-D: the corrective positive control. Gates each generated tool call
+/// against the SAME allowlist that Condition C's grammar enforces (`allowlist_verdict`),
+/// but POST-generation — the out-of-scope call is produced, then rejected. Rejections are
+/// `retryable`, so the loop feeds back `D_REJECTION_TEMPLATE` and regenerates up to the
+/// retry budget (vs A3's `block`, which terminates immediately).
+pub struct AllowlistGateStep;
+
+#[async_trait::async_trait]
+impl PostInferenceStep for AllowlistGateStep {
+    fn name(&self) -> &str {
+        "allowlist-gate"
+    }
+    async fn process_output(&self, output: &PipelineOutput) -> Result<GateResult, PipelineError> {
+        if let Some(tc) = &output.tool_call {
+            if let tantalus_grammar::AllowlistVerdict::Rejected { tool, field, value } =
+                tantalus_grammar::allowlist_verdict(&tc.params)
+            {
+                return Ok(GateResult::reject_retryable(format!("{tool}.{field} '{value}' not in authorized scope")));
+            }
+        }
+        Ok(GateResult::allow())
+    }
+}
+
 // --- Tool Execution Step ---
 
 pub struct ToolExecStepImpl { executor: Executor, env: Arc<Environment> }

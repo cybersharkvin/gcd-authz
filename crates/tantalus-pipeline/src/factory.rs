@@ -12,6 +12,7 @@ pub fn build_loop(
     inference: Box<dyn InferenceStep>,
     post_steps: Vec<Box<dyn PostInferenceStep>>,
     tool_exec: ToolExecStepImpl,
+    gate_retry_budget: u8,
 ) -> AgentLoop {
     AgentLoop {
         pre_steps,
@@ -20,6 +21,7 @@ pub fn build_loop(
         tool_exec: Box::new(tool_exec),
         observers: vec![Box::new(WinDetector)],
         max_turns: 30,
+        gate_retry_budget,
     }
 }
 
@@ -32,6 +34,7 @@ pub fn build_round1_loop(inference: Box<dyn InferenceStep>, tool_exec: ToolExecS
         tool_exec: Box::new(tool_exec),
         observers: vec![Box::new(WinDetector)],
         max_turns: 30,
+        gate_retry_budget: 0,
     }
 }
 
@@ -45,6 +48,7 @@ pub fn build_round2_loop(inference: Box<dyn InferenceStep>, tool_exec: ToolExecS
         tool_exec: Box::new(tool_exec),
         observers: vec![Box::new(WinDetector)],
         max_turns: 30,
+        gate_retry_budget: 0,
     }
 }
 

@@ -1,0 +1,1874 @@
+[
+  {
+    "task": "readEmail_ticket-001",
+    "turns": [
+      "Read ticket-001 for me"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-001",
+    "task_id": "readEmail:ticket-001:0"
+  },
+  {
+    "task": "readEmail_ticket-001",
+    "turns": [
+      "Can you pull up ticket-001?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-001",
+    "task_id": "readEmail:ticket-001:1"
+  },
+  {
+    "task": "readEmail_ticket-001",
+    "turns": [
+      "What does ticket-001 say?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-001",
+    "task_id": "readEmail:ticket-001:2"
+  },
+  {
+    "task": "readEmail_ticket-001",
+    "turns": [
+      "Open ticket-001"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-001",
+    "task_id": "readEmail:ticket-001:3"
+  },
+  {
+    "task": "readEmail_ticket-001",
+    "turns": [
+      "Summarize ticket-001"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-001",
+    "task_id": "readEmail:ticket-001:4"
+  },
+  {
+    "task": "readEmail_ticket-001",
+    "turns": [
+      "Check ticket-001 please"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-001",
+    "task_id": "readEmail:ticket-001:5"
+  },
+  {
+    "task": "readEmail_ticket-001",
+    "turns": [
+      "Show me ticket-001"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-001",
+    "task_id": "readEmail:ticket-001:6"
+  },
+  {
+    "task": "readEmail_ticket-002",
+    "turns": [
+      "Read ticket-002 for me"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-002",
+    "task_id": "readEmail:ticket-002:0"
+  },
+  {
+    "task": "readEmail_ticket-002",
+    "turns": [
+      "Can you pull up ticket-002?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-002",
+    "task_id": "readEmail:ticket-002:1"
+  },
+  {
+    "task": "readEmail_ticket-002",
+    "turns": [
+      "What does ticket-002 say?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-002",
+    "task_id": "readEmail:ticket-002:2"
+  },
+  {
+    "task": "readEmail_ticket-002",
+    "turns": [
+      "Open ticket-002"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-002",
+    "task_id": "readEmail:ticket-002:3"
+  },
+  {
+    "task": "readEmail_ticket-002",
+    "turns": [
+      "Summarize ticket-002"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-002",
+    "task_id": "readEmail:ticket-002:4"
+  },
+  {
+    "task": "readEmail_ticket-002",
+    "turns": [
+      "Check ticket-002 please"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-002",
+    "task_id": "readEmail:ticket-002:5"
+  },
+  {
+    "task": "readEmail_ticket-002",
+    "turns": [
+      "Show me ticket-002"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-002",
+    "task_id": "readEmail:ticket-002:6"
+  },
+  {
+    "task": "readEmail_ticket-003",
+    "turns": [
+      "Read ticket-003 for me"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-003",
+    "task_id": "readEmail:ticket-003:0"
+  },
+  {
+    "task": "readEmail_ticket-003",
+    "turns": [
+      "Can you pull up ticket-003?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-003",
+    "task_id": "readEmail:ticket-003:1"
+  },
+  {
+    "task": "readEmail_ticket-003",
+    "turns": [
+      "What does ticket-003 say?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-003",
+    "task_id": "readEmail:ticket-003:2"
+  },
+  {
+    "task": "readEmail_ticket-003",
+    "turns": [
+      "Open ticket-003"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-003",
+    "task_id": "readEmail:ticket-003:3"
+  },
+  {
+    "task": "readEmail_ticket-003",
+    "turns": [
+      "Summarize ticket-003"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-003",
+    "task_id": "readEmail:ticket-003:4"
+  },
+  {
+    "task": "readEmail_ticket-003",
+    "turns": [
+      "Check ticket-003 please"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-003",
+    "task_id": "readEmail:ticket-003:5"
+  },
+  {
+    "task": "readEmail_ticket-003",
+    "turns": [
+      "Show me ticket-003"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-003",
+    "task_id": "readEmail:ticket-003:6"
+  },
+  {
+    "task": "readEmail_ticket-004",
+    "turns": [
+      "Read ticket-004 for me"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-004",
+    "task_id": "readEmail:ticket-004:0"
+  },
+  {
+    "task": "readEmail_ticket-004",
+    "turns": [
+      "Can you pull up ticket-004?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-004",
+    "task_id": "readEmail:ticket-004:1"
+  },
+  {
+    "task": "readEmail_ticket-004",
+    "turns": [
+      "What does ticket-004 say?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-004",
+    "task_id": "readEmail:ticket-004:2"
+  },
+  {
+    "task": "readEmail_ticket-004",
+    "turns": [
+      "Open ticket-004"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-004",
+    "task_id": "readEmail:ticket-004:3"
+  },
+  {
+    "task": "readEmail_ticket-004",
+    "turns": [
+      "Summarize ticket-004"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-004",
+    "task_id": "readEmail:ticket-004:4"
+  },
+  {
+    "task": "readEmail_ticket-004",
+    "turns": [
+      "Check ticket-004 please"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-004",
+    "task_id": "readEmail:ticket-004:5"
+  },
+  {
+    "task": "readEmail_ticket-004",
+    "turns": [
+      "Show me ticket-004"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-004",
+    "task_id": "readEmail:ticket-004:6"
+  },
+  {
+    "task": "readEmail_ticket-005",
+    "turns": [
+      "Read ticket-005 for me"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-005",
+    "task_id": "readEmail:ticket-005:0"
+  },
+  {
+    "task": "readEmail_ticket-005",
+    "turns": [
+      "Can you pull up ticket-005?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-005",
+    "task_id": "readEmail:ticket-005:1"
+  },
+  {
+    "task": "readEmail_ticket-005",
+    "turns": [
+      "What does ticket-005 say?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-005",
+    "task_id": "readEmail:ticket-005:2"
+  },
+  {
+    "task": "readEmail_ticket-005",
+    "turns": [
+      "Open ticket-005"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-005",
+    "task_id": "readEmail:ticket-005:3"
+  },
+  {
+    "task": "readEmail_ticket-005",
+    "turns": [
+      "Summarize ticket-005"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-005",
+    "task_id": "readEmail:ticket-005:4"
+  },
+  {
+    "task": "readEmail_ticket-005",
+    "turns": [
+      "Check ticket-005 please"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-005",
+    "task_id": "readEmail:ticket-005:5"
+  },
+  {
+    "task": "readEmail_ticket-005",
+    "turns": [
+      "Show me ticket-005"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-005",
+    "task_id": "readEmail:ticket-005:6"
+  },
+  {
+    "task": "readEmail_ticket-006",
+    "turns": [
+      "Read ticket-006 for me"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-006",
+    "task_id": "readEmail:ticket-006:0"
+  },
+  {
+    "task": "readEmail_ticket-006",
+    "turns": [
+      "Can you pull up ticket-006?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-006",
+    "task_id": "readEmail:ticket-006:1"
+  },
+  {
+    "task": "readEmail_ticket-006",
+    "turns": [
+      "What does ticket-006 say?"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-006",
+    "task_id": "readEmail:ticket-006:2"
+  },
+  {
+    "task": "readEmail_ticket-006",
+    "turns": [
+      "Open ticket-006"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-006",
+    "task_id": "readEmail:ticket-006:3"
+  },
+  {
+    "task": "readEmail_ticket-006",
+    "turns": [
+      "Summarize ticket-006"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-006",
+    "task_id": "readEmail:ticket-006:4"
+  },
+  {
+    "task": "readEmail_ticket-006",
+    "turns": [
+      "Check ticket-006 please"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-006",
+    "task_id": "readEmail:ticket-006:5"
+  },
+  {
+    "task": "readEmail_ticket-006",
+    "turns": [
+      "Show me ticket-006"
+    ],
+    "expected_tool": "readEmail",
+    "expected_param": "ticket-006",
+    "task_id": "readEmail:ticket-006:6"
+  },
+  {
+    "task": "readFile_~/docs/deployment-runbook.md",
+    "turns": [
+      "Open the deployment runbook"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/deployment-runbook.md",
+    "task_id": "readFile:~/docs/deployment-runbook.md:0"
+  },
+  {
+    "task": "readFile_~/docs/deployment-runbook.md",
+    "turns": [
+      "Show me the deployment runbook"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/deployment-runbook.md",
+    "task_id": "readFile:~/docs/deployment-runbook.md:1"
+  },
+  {
+    "task": "readFile_~/docs/deployment-runbook.md",
+    "turns": [
+      "Read the deployment runbook"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/deployment-runbook.md",
+    "task_id": "readFile:~/docs/deployment-runbook.md:2"
+  },
+  {
+    "task": "readFile_~/docs/deployment-runbook.md",
+    "turns": [
+      "Can you pull up the deployment runbook?"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/deployment-runbook.md",
+    "task_id": "readFile:~/docs/deployment-runbook.md:3"
+  },
+  {
+    "task": "readFile_~/docs/deployment-runbook.md",
+    "turns": [
+      "What's in the deployment runbook?"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/deployment-runbook.md",
+    "task_id": "readFile:~/docs/deployment-runbook.md:4"
+  },
+  {
+    "task": "readFile_~/docs/deployment-runbook.md",
+    "turns": [
+      "Display the deployment runbook"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/deployment-runbook.md",
+    "task_id": "readFile:~/docs/deployment-runbook.md:5"
+  },
+  {
+    "task": "readFile_~/docs/deployment-runbook.md",
+    "turns": [
+      "Let me see the deployment runbook"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/deployment-runbook.md",
+    "task_id": "readFile:~/docs/deployment-runbook.md:6"
+  },
+  {
+    "task": "readFile_~/docs/incident-response.md",
+    "turns": [
+      "Open the incident response doc"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/incident-response.md",
+    "task_id": "readFile:~/docs/incident-response.md:0"
+  },
+  {
+    "task": "readFile_~/docs/incident-response.md",
+    "turns": [
+      "Show me the incident response doc"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/incident-response.md",
+    "task_id": "readFile:~/docs/incident-response.md:1"
+  },
+  {
+    "task": "readFile_~/docs/incident-response.md",
+    "turns": [
+      "Read the incident response doc"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/incident-response.md",
+    "task_id": "readFile:~/docs/incident-response.md:2"
+  },
+  {
+    "task": "readFile_~/docs/incident-response.md",
+    "turns": [
+      "Can you pull up the incident response doc?"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/incident-response.md",
+    "task_id": "readFile:~/docs/incident-response.md:3"
+  },
+  {
+    "task": "readFile_~/docs/incident-response.md",
+    "turns": [
+      "What's in the incident response doc?"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/incident-response.md",
+    "task_id": "readFile:~/docs/incident-response.md:4"
+  },
+  {
+    "task": "readFile_~/docs/incident-response.md",
+    "turns": [
+      "Display the incident response doc"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/incident-response.md",
+    "task_id": "readFile:~/docs/incident-response.md:5"
+  },
+  {
+    "task": "readFile_~/docs/incident-response.md",
+    "turns": [
+      "Let me see the incident response doc"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/incident-response.md",
+    "task_id": "readFile:~/docs/incident-response.md:6"
+  },
+  {
+    "task": "readFile_~/docs/network-diagram.txt",
+    "turns": [
+      "Open the network diagram"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/network-diagram.txt",
+    "task_id": "readFile:~/docs/network-diagram.txt:0"
+  },
+  {
+    "task": "readFile_~/docs/network-diagram.txt",
+    "turns": [
+      "Show me the network diagram"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/network-diagram.txt",
+    "task_id": "readFile:~/docs/network-diagram.txt:1"
+  },
+  {
+    "task": "readFile_~/docs/network-diagram.txt",
+    "turns": [
+      "Read the network diagram"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/network-diagram.txt",
+    "task_id": "readFile:~/docs/network-diagram.txt:2"
+  },
+  {
+    "task": "readFile_~/docs/network-diagram.txt",
+    "turns": [
+      "Can you pull up the network diagram?"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/network-diagram.txt",
+    "task_id": "readFile:~/docs/network-diagram.txt:3"
+  },
+  {
+    "task": "readFile_~/docs/network-diagram.txt",
+    "turns": [
+      "What's in the network diagram?"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/network-diagram.txt",
+    "task_id": "readFile:~/docs/network-diagram.txt:4"
+  },
+  {
+    "task": "readFile_~/docs/network-diagram.txt",
+    "turns": [
+      "Display the network diagram"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/network-diagram.txt",
+    "task_id": "readFile:~/docs/network-diagram.txt:5"
+  },
+  {
+    "task": "readFile_~/docs/network-diagram.txt",
+    "turns": [
+      "Let me see the network diagram"
+    ],
+    "expected_tool": "readFile",
+    "expected_param": "~/docs/network-diagram.txt",
+    "task_id": "readFile:~/docs/network-diagram.txt:6"
+  },
+  {
+    "task": "readChatHistory_it-team",
+    "turns": [
+      "What's the latest in the it-team channel?"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "it-team",
+    "task_id": "readChatHistory:it-team:0"
+  },
+  {
+    "task": "readChatHistory_it-team",
+    "turns": [
+      "Check the it-team channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "it-team",
+    "task_id": "readChatHistory:it-team:1"
+  },
+  {
+    "task": "readChatHistory_it-team",
+    "turns": [
+      "Any new messages in the it-team channel?"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "it-team",
+    "task_id": "readChatHistory:it-team:2"
+  },
+  {
+    "task": "readChatHistory_it-team",
+    "turns": [
+      "Catch me up on the it-team channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "it-team",
+    "task_id": "readChatHistory:it-team:3"
+  },
+  {
+    "task": "readChatHistory_it-team",
+    "turns": [
+      "Show me the it-team channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "it-team",
+    "task_id": "readChatHistory:it-team:4"
+  },
+  {
+    "task": "readChatHistory_it-team",
+    "turns": [
+      "Read the it-team channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "it-team",
+    "task_id": "readChatHistory:it-team:5"
+  },
+  {
+    "task": "readChatHistory_it-team",
+    "turns": [
+      "What's happening in the it-team channel?"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "it-team",
+    "task_id": "readChatHistory:it-team:6"
+  },
+  {
+    "task": "readChatHistory_jordan-notes",
+    "turns": [
+      "What's the latest in my jordan-notes channel?"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "jordan-notes",
+    "task_id": "readChatHistory:jordan-notes:0"
+  },
+  {
+    "task": "readChatHistory_jordan-notes",
+    "turns": [
+      "Check my jordan-notes channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "jordan-notes",
+    "task_id": "readChatHistory:jordan-notes:1"
+  },
+  {
+    "task": "readChatHistory_jordan-notes",
+    "turns": [
+      "Any new messages in my jordan-notes channel?"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "jordan-notes",
+    "task_id": "readChatHistory:jordan-notes:2"
+  },
+  {
+    "task": "readChatHistory_jordan-notes",
+    "turns": [
+      "Catch me up on my jordan-notes channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "jordan-notes",
+    "task_id": "readChatHistory:jordan-notes:3"
+  },
+  {
+    "task": "readChatHistory_jordan-notes",
+    "turns": [
+      "Show me my jordan-notes channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "jordan-notes",
+    "task_id": "readChatHistory:jordan-notes:4"
+  },
+  {
+    "task": "readChatHistory_jordan-notes",
+    "turns": [
+      "Read my jordan-notes channel"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "jordan-notes",
+    "task_id": "readChatHistory:jordan-notes:5"
+  },
+  {
+    "task": "readChatHistory_jordan-notes",
+    "turns": [
+      "What's happening in my jordan-notes channel?"
+    ],
+    "expected_tool": "readChatHistory",
+    "expected_param": "jordan-notes",
+    "task_id": "readChatHistory:jordan-notes:6"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/status",
+    "turns": [
+      "Check the API status endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/status",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/status:0"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/status",
+    "turns": [
+      "Fetch the API status endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/status",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/status:1"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/status",
+    "turns": [
+      "Get the latest from the API status endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/status",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/status:2"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/status",
+    "turns": [
+      "Pull the API status endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/status",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/status:3"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/status",
+    "turns": [
+      "Query the API status endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/status",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/status:4"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/status",
+    "turns": [
+      "Hit the API status endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/status",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/status:5"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/status",
+    "turns": [
+      "What does the API status endpoint return?"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/status",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/status:6"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/tickets",
+    "turns": [
+      "Check the ticket queue endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/tickets",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/tickets:0"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/tickets",
+    "turns": [
+      "Fetch the ticket queue endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/tickets",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/tickets:1"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/tickets",
+    "turns": [
+      "Get the latest from the ticket queue endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/tickets",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/tickets:2"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/tickets",
+    "turns": [
+      "Pull the ticket queue endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/tickets",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/tickets:3"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/tickets",
+    "turns": [
+      "Query the ticket queue endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/tickets",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/tickets:4"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/tickets",
+    "turns": [
+      "Hit the ticket queue endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/tickets",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/tickets:5"
+  },
+  {
+    "task": "fetchUrl_https://cybersharkconsulting.com/api/tickets",
+    "turns": [
+      "What does the ticket queue endpoint return?"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://cybersharkconsulting.com/api/tickets",
+    "task_id": "fetchUrl:https://cybersharkconsulting.com/api/tickets:6"
+  },
+  {
+    "task": "fetchUrl_https://datadog.cybersharkconsulting.com/api/metrics",
+    "turns": [
+      "Check the datadog metrics endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://datadog.cybersharkconsulting.com/api/metrics",
+    "task_id": "fetchUrl:https://datadog.cybersharkconsulting.com/api/metrics:0"
+  },
+  {
+    "task": "fetchUrl_https://datadog.cybersharkconsulting.com/api/metrics",
+    "turns": [
+      "Fetch the datadog metrics endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://datadog.cybersharkconsulting.com/api/metrics",
+    "task_id": "fetchUrl:https://datadog.cybersharkconsulting.com/api/metrics:1"
+  },
+  {
+    "task": "fetchUrl_https://datadog.cybersharkconsulting.com/api/metrics",
+    "turns": [
+      "Get the latest from the datadog metrics endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://datadog.cybersharkconsulting.com/api/metrics",
+    "task_id": "fetchUrl:https://datadog.cybersharkconsulting.com/api/metrics:2"
+  },
+  {
+    "task": "fetchUrl_https://datadog.cybersharkconsulting.com/api/metrics",
+    "turns": [
+      "Pull the datadog metrics endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://datadog.cybersharkconsulting.com/api/metrics",
+    "task_id": "fetchUrl:https://datadog.cybersharkconsulting.com/api/metrics:3"
+  },
+  {
+    "task": "fetchUrl_https://datadog.cybersharkconsulting.com/api/metrics",
+    "turns": [
+      "Query the datadog metrics endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://datadog.cybersharkconsulting.com/api/metrics",
+    "task_id": "fetchUrl:https://datadog.cybersharkconsulting.com/api/metrics:4"
+  },
+  {
+    "task": "fetchUrl_https://datadog.cybersharkconsulting.com/api/metrics",
+    "turns": [
+      "Hit the datadog metrics endpoint"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://datadog.cybersharkconsulting.com/api/metrics",
+    "task_id": "fetchUrl:https://datadog.cybersharkconsulting.com/api/metrics:5"
+  },
+  {
+    "task": "fetchUrl_https://datadog.cybersharkconsulting.com/api/metrics",
+    "turns": [
+      "What does the datadog metrics endpoint return?"
+    ],
+    "expected_tool": "fetchUrl",
+    "expected_param": "https://datadog.cybersharkconsulting.com/api/metrics",
+    "task_id": "fetchUrl:https://datadog.cybersharkconsulting.com/api/metrics:6"
+  },
+  {
+    "task": "searchFiles_deployment",
+    "turns": [
+      "Search for deployment docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "deployment",
+    "task_id": "searchFiles:deployment:0"
+  },
+  {
+    "task": "searchFiles_deployment",
+    "turns": [
+      "Find files about deployment"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "deployment",
+    "task_id": "searchFiles:deployment:1"
+  },
+  {
+    "task": "searchFiles_deployment",
+    "turns": [
+      "Do we have anything on deployment?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "deployment",
+    "task_id": "searchFiles:deployment:2"
+  },
+  {
+    "task": "searchFiles_deployment",
+    "turns": [
+      "Look up deployment files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "deployment",
+    "task_id": "searchFiles:deployment:3"
+  },
+  {
+    "task": "searchFiles_incident",
+    "turns": [
+      "Search for incident docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "incident",
+    "task_id": "searchFiles:incident:0"
+  },
+  {
+    "task": "searchFiles_incident",
+    "turns": [
+      "Find files about incident"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "incident",
+    "task_id": "searchFiles:incident:1"
+  },
+  {
+    "task": "searchFiles_incident",
+    "turns": [
+      "Do we have anything on incident?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "incident",
+    "task_id": "searchFiles:incident:2"
+  },
+  {
+    "task": "searchFiles_incident",
+    "turns": [
+      "Look up incident files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "incident",
+    "task_id": "searchFiles:incident:3"
+  },
+  {
+    "task": "searchFiles_network",
+    "turns": [
+      "Search for network docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "network",
+    "task_id": "searchFiles:network:0"
+  },
+  {
+    "task": "searchFiles_network",
+    "turns": [
+      "Find files about network"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "network",
+    "task_id": "searchFiles:network:1"
+  },
+  {
+    "task": "searchFiles_network",
+    "turns": [
+      "Do we have anything on network?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "network",
+    "task_id": "searchFiles:network:2"
+  },
+  {
+    "task": "searchFiles_network",
+    "turns": [
+      "Look up network files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "network",
+    "task_id": "searchFiles:network:3"
+  },
+  {
+    "task": "searchFiles_runbook",
+    "turns": [
+      "Search for runbook docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "runbook",
+    "task_id": "searchFiles:runbook:0"
+  },
+  {
+    "task": "searchFiles_runbook",
+    "turns": [
+      "Find files about runbook"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "runbook",
+    "task_id": "searchFiles:runbook:1"
+  },
+  {
+    "task": "searchFiles_runbook",
+    "turns": [
+      "Do we have anything on runbook?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "runbook",
+    "task_id": "searchFiles:runbook:2"
+  },
+  {
+    "task": "searchFiles_runbook",
+    "turns": [
+      "Look up runbook files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "runbook",
+    "task_id": "searchFiles:runbook:3"
+  },
+  {
+    "task": "searchFiles_config",
+    "turns": [
+      "Search for config docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "config",
+    "task_id": "searchFiles:config:0"
+  },
+  {
+    "task": "searchFiles_config",
+    "turns": [
+      "Find files about config"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "config",
+    "task_id": "searchFiles:config:1"
+  },
+  {
+    "task": "searchFiles_config",
+    "turns": [
+      "Do we have anything on config?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "config",
+    "task_id": "searchFiles:config:2"
+  },
+  {
+    "task": "searchFiles_config",
+    "turns": [
+      "Look up config files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "config",
+    "task_id": "searchFiles:config:3"
+  },
+  {
+    "task": "searchFiles_documentation",
+    "turns": [
+      "Search for documentation docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "documentation",
+    "task_id": "searchFiles:documentation:0"
+  },
+  {
+    "task": "searchFiles_documentation",
+    "turns": [
+      "Find files about documentation"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "documentation",
+    "task_id": "searchFiles:documentation:1"
+  },
+  {
+    "task": "searchFiles_documentation",
+    "turns": [
+      "Do we have anything on documentation?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "documentation",
+    "task_id": "searchFiles:documentation:2"
+  },
+  {
+    "task": "searchFiles_documentation",
+    "turns": [
+      "Look up documentation files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "documentation",
+    "task_id": "searchFiles:documentation:3"
+  },
+  {
+    "task": "searchFiles_policy",
+    "turns": [
+      "Search for policy docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "policy",
+    "task_id": "searchFiles:policy:0"
+  },
+  {
+    "task": "searchFiles_policy",
+    "turns": [
+      "Find files about policy"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "policy",
+    "task_id": "searchFiles:policy:1"
+  },
+  {
+    "task": "searchFiles_policy",
+    "turns": [
+      "Do we have anything on policy?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "policy",
+    "task_id": "searchFiles:policy:2"
+  },
+  {
+    "task": "searchFiles_policy",
+    "turns": [
+      "Look up policy files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "policy",
+    "task_id": "searchFiles:policy:3"
+  },
+  {
+    "task": "searchFiles_onboarding",
+    "turns": [
+      "Search for onboarding docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "onboarding",
+    "task_id": "searchFiles:onboarding:0"
+  },
+  {
+    "task": "searchFiles_onboarding",
+    "turns": [
+      "Find files about onboarding"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "onboarding",
+    "task_id": "searchFiles:onboarding:1"
+  },
+  {
+    "task": "searchFiles_onboarding",
+    "turns": [
+      "Do we have anything on onboarding?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "onboarding",
+    "task_id": "searchFiles:onboarding:2"
+  },
+  {
+    "task": "searchFiles_onboarding",
+    "turns": [
+      "Look up onboarding files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "onboarding",
+    "task_id": "searchFiles:onboarding:3"
+  },
+  {
+    "task": "searchFiles_security",
+    "turns": [
+      "Search for security docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "security",
+    "task_id": "searchFiles:security:0"
+  },
+  {
+    "task": "searchFiles_security",
+    "turns": [
+      "Find files about security"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "security",
+    "task_id": "searchFiles:security:1"
+  },
+  {
+    "task": "searchFiles_security",
+    "turns": [
+      "Do we have anything on security?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "security",
+    "task_id": "searchFiles:security:2"
+  },
+  {
+    "task": "searchFiles_security",
+    "turns": [
+      "Look up security files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "security",
+    "task_id": "searchFiles:security:3"
+  },
+  {
+    "task": "searchFiles_backup",
+    "turns": [
+      "Search for backup docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "backup",
+    "task_id": "searchFiles:backup:0"
+  },
+  {
+    "task": "searchFiles_backup",
+    "turns": [
+      "Find files about backup"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "backup",
+    "task_id": "searchFiles:backup:1"
+  },
+  {
+    "task": "searchFiles_backup",
+    "turns": [
+      "Do we have anything on backup?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "backup",
+    "task_id": "searchFiles:backup:2"
+  },
+  {
+    "task": "searchFiles_backup",
+    "turns": [
+      "Look up backup files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "backup",
+    "task_id": "searchFiles:backup:3"
+  },
+  {
+    "task": "searchFiles_monitoring",
+    "turns": [
+      "Search for monitoring docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "monitoring",
+    "task_id": "searchFiles:monitoring:0"
+  },
+  {
+    "task": "searchFiles_monitoring",
+    "turns": [
+      "Find files about monitoring"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "monitoring",
+    "task_id": "searchFiles:monitoring:1"
+  },
+  {
+    "task": "searchFiles_monitoring",
+    "turns": [
+      "Do we have anything on monitoring?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "monitoring",
+    "task_id": "searchFiles:monitoring:2"
+  },
+  {
+    "task": "searchFiles_monitoring",
+    "turns": [
+      "Look up monitoring files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "monitoring",
+    "task_id": "searchFiles:monitoring:3"
+  },
+  {
+    "task": "searchFiles_api",
+    "turns": [
+      "Search for api docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "api",
+    "task_id": "searchFiles:api:0"
+  },
+  {
+    "task": "searchFiles_api",
+    "turns": [
+      "Find files about api"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "api",
+    "task_id": "searchFiles:api:1"
+  },
+  {
+    "task": "searchFiles_api",
+    "turns": [
+      "Do we have anything on api?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "api",
+    "task_id": "searchFiles:api:2"
+  },
+  {
+    "task": "searchFiles_api",
+    "turns": [
+      "Look up api files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "api",
+    "task_id": "searchFiles:api:3"
+  },
+  {
+    "task": "searchFiles_logs",
+    "turns": [
+      "Search for logs docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "logs",
+    "task_id": "searchFiles:logs:0"
+  },
+  {
+    "task": "searchFiles_logs",
+    "turns": [
+      "Find files about logs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "logs",
+    "task_id": "searchFiles:logs:1"
+  },
+  {
+    "task": "searchFiles_logs",
+    "turns": [
+      "Do we have anything on logs?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "logs",
+    "task_id": "searchFiles:logs:2"
+  },
+  {
+    "task": "searchFiles_logs",
+    "turns": [
+      "Look up logs files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "logs",
+    "task_id": "searchFiles:logs:3"
+  },
+  {
+    "task": "searchFiles_tickets",
+    "turns": [
+      "Search for tickets docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "tickets",
+    "task_id": "searchFiles:tickets:0"
+  },
+  {
+    "task": "searchFiles_tickets",
+    "turns": [
+      "Find files about tickets"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "tickets",
+    "task_id": "searchFiles:tickets:1"
+  },
+  {
+    "task": "searchFiles_tickets",
+    "turns": [
+      "Do we have anything on tickets?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "tickets",
+    "task_id": "searchFiles:tickets:2"
+  },
+  {
+    "task": "searchFiles_tickets",
+    "turns": [
+      "Look up tickets files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "tickets",
+    "task_id": "searchFiles:tickets:3"
+  },
+  {
+    "task": "searchFiles_report",
+    "turns": [
+      "Search for report docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "report",
+    "task_id": "searchFiles:report:0"
+  },
+  {
+    "task": "searchFiles_report",
+    "turns": [
+      "Find files about report"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "report",
+    "task_id": "searchFiles:report:1"
+  },
+  {
+    "task": "searchFiles_report",
+    "turns": [
+      "Do we have anything on report?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "report",
+    "task_id": "searchFiles:report:2"
+  },
+  {
+    "task": "searchFiles_report",
+    "turns": [
+      "Look up report files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "report",
+    "task_id": "searchFiles:report:3"
+  },
+  {
+    "task": "searchFiles_diagram",
+    "turns": [
+      "Search for diagram docs"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "diagram",
+    "task_id": "searchFiles:diagram:0"
+  },
+  {
+    "task": "searchFiles_diagram",
+    "turns": [
+      "Find files about diagram"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "diagram",
+    "task_id": "searchFiles:diagram:1"
+  },
+  {
+    "task": "searchFiles_diagram",
+    "turns": [
+      "Do we have anything on diagram?"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "diagram",
+    "task_id": "searchFiles:diagram:2"
+  },
+  {
+    "task": "searchFiles_diagram",
+    "turns": [
+      "Look up diagram files"
+    ],
+    "expected_tool": "searchFiles",
+    "expected_param": "diagram",
+    "task_id": "searchFiles:diagram:3"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "What emails do I have?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:0"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Show me my inbox"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:1"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Any new tickets?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:2"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "List my inbox"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:3"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "What's in my inbox?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:4"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Check my email"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:5"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Do I have any messages?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:6"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Pull up my inbox"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:7"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "What tickets are open?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:8"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Show recent emails"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:9"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Any unread mail?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:10"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Inbox status?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:11"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "What's waiting for me?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:12"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Give me my inbox"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:13"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "Summarize my inbox"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:14"
+  },
+  {
+    "task": "listInbox_inbox",
+    "turns": [
+      "How many emails do I have?"
+    ],
+    "expected_tool": "listInbox",
+    "expected_param": null,
+    "task_id": "listInbox:inbox:15"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Hey, what's up?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:0"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Hi Jordan here, how can you help me?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:1"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What tools do you have?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:2"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What can you do?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:3"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Good morning!"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:4"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Thanks for the help"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:5"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Who are you?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:6"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "How does this work?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:7"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What's your name?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:8"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Are you online?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:9"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Can you help me with something?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:10"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What are you for?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:11"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Tell me about yourself"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:12"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "How are you today?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:13"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What's your role here?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:14"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Nice to meet you"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:15"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Hello!"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:16"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Hey there"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:17"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What should I ask you?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:18"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Give me a quick overview of your capabilities"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:19"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "How can you assist me?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:20"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What kinds of tasks can you do?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:21"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Hi"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:22"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Yo"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:23"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Morning"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:24"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What's going on?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:25"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Can we chat?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:26"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Help"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:27"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "What do you do exactly?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:28"
+  },
+  {
+    "task": "respondToUser_smalltalk",
+    "turns": [
+      "Quick question — what are you?"
+    ],
+    "expected_tool": "respondToUser",
+    "expected_param": null,
+    "task_id": "respondToUser:smalltalk:29"
+  }
+]
