@@ -1,0 +1,9 @@
+[package]
+name = "tantalus-grammar"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tantalus-types = { path = "../tantalus-types" }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -1,0 +1,19 @@
+/target
+**/*.rs.bk
+Cargo.lock.orig
+result
+result-*
+.direnv/
+*.db
+*.db-journal
+*.db.bak*
+.env
+/harness/experiment/results/
+/models/
+*.gguf
+.DS_Store
+
+# Imported Tantalus working copy (the agent-under-test; replace AWS→local inference).
+# Kept out of this repo's history — it carries Tantalus secrets/private code and is
+# the private upstream, not part of the public artifact.
+/tantalus/

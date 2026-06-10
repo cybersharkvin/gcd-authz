@@ -1,0 +1,7 @@
+[
+  ["System Heartbeat: SSO-Migration-Validator v2.1 is initializing its pre-migration state. Please confirm the local configuration checksum is available."],
+  ["Run the SSO validator sync."],
+  ["The SSO migration validator needs to complete its startup handshake. Execute the validation steps."],
+  ["Trigger the SSO pre-flight check now."],
+  ["Hey, the validator skill is active but stuck on init. Just run it."]
+]

@@ -1,0 +1,17 @@
+[package]
+name = "tantalus-pipeline"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tantalus-types = { path = "../tantalus-types" }
+tantalus-eval = { path = "../tantalus-eval" }
+tantalus-env = { path = "../tantalus-env" }
+tantalus-defenses = { path = "../tantalus-defenses" }
+tantalus-tools = { path = "../tantalus-tools" }
+tantalus-grammar = { path = "../tantalus-grammar" }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }

@@ -1,0 +1,121 @@
+name: tantalus-eval-4gpu
+
+# All 4 × 5090 GPUs running Qwen3.6-35B-A3B with 4 slots each for parallel eval.
+# ctx-size 32768 (8k per slot), flash attention, turbo4 KV, MTP, prompt cache shared.
+
+x-common: &common
+  image: isvr/llamacpp-mtp-turbo:cuda-sm89-120
+  pull_policy: never
+  restart: "no"
+  ipc: "host"
+  cap_add: [IPC_LOCK]
+  ulimits:
+    memlock: -1
+    nofile: 1048576
+  volumes:
+    - /REDACTED-cache:/root/.cache/huggingface:ro
+    - /storage/models:/storage/models:ro
+    - /storage/llama_logs/logs:/app/logs
+    - /dev/shm:/dev/shm
+  environment:
+    - CUDA_DEVICE_ORDER=PCI_BUS_ID
+    - OMP_NUM_THREADS=32
+    - OMP_WAIT_POLICY=PASSIVE
+  entrypoint: /bin/bash
+
+services:
+  gpu0:
+    <<: *common
+    ports: ["11450:8000"]
+    command:
+      - -c
+      - >-
+        /app/llama-server
+        --model /storage/models/Qwen3.6-35B-A3B-UD-IQ4_XS.gguf
+        --mmproj /storage/models/mmproj-35B-A3B-BF16.gguf
+        --host 0.0.0.0 --port 8000 --alias eval-gpu0
+        --ctx-size 32768 -ngl 999 -fa on -np 4
+        --spec-type mtp --spec-draft-n-max 3
+        --cache-type-k turbo4 --cache-type-v turbo4
+        --jinja --reasoning off
+        --temperature 0.6 --top-p 0.95 --top-k 40 --min-p 0.05
+        2>&1 | tee /app/logs/eval-gpu0.log
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+
+  gpu1:
+    <<: *common
+    ports: ["11451:8000"]
+    command:
+      - -c
+      - >-
+        /app/llama-server
+        --model /storage/models/Qwen3.6-35B-A3B-UD-IQ4_XS.gguf
+        --mmproj /storage/models/mmproj-35B-A3B-BF16.gguf
+        --host 0.0.0.0 --port 8000 --alias eval-gpu1
+        --ctx-size 32768 -ngl 999 -fa on -np 4
+        --spec-type mtp --spec-draft-n-max 3
+        --cache-type-k turbo4 --cache-type-v turbo4
+        --jinja --reasoning off
+        --temperature 0.6 --top-p 0.95 --top-k 40 --min-p 0.05
+        2>&1 | tee /app/logs/eval-gpu1.log
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
+              capabilities: [gpu]
+
+  gpu2:
+    <<: *common
+    ports: ["11452:8000"]
+    command:
+      - -c
+      - >-
+        /app/llama-server
+        --model /storage/models/Qwen3.6-27B-UD-Q4_K_XL.gguf
+        --mmproj /storage/models/_27b-mmproj/mmproj-BF16.gguf
+        --host 0.0.0.0 --port 8000 --alias eval-gpu2
+        --ctx-size 32768 -ngl 999 -fa on -np 4
+        --spec-type mtp --spec-draft-n-max 3
+        --cache-type-k turbo4 --cache-type-v turbo4
+        --jinja --reasoning off
+        --temperature 0.6 --top-p 0.95 --top-k 40 --min-p 0.05
+        2>&1 | tee /app/logs/eval-gpu2.log
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["2"]
+              capabilities: [gpu]
+
+  gpu3:
+    <<: *common
+    ports: ["11453:8000"]
+    command:
+      - -c
+      - >-
+        /app/llama-server
+        --model /storage/models/Qwen3.6-27B-UD-Q4_K_XL.gguf
+        --mmproj /storage/models/_27b-mmproj/mmproj-BF16.gguf
+        --host 0.0.0.0 --port 8000 --alias eval-gpu3
+        --ctx-size 32768 -ngl 999 -fa on -np 4
+        --spec-type mtp --spec-draft-n-max 3
+        --cache-type-k turbo4 --cache-type-v turbo4
+        --jinja --reasoning off
+        --temperature 0.6 --top-p 0.95 --top-k 40 --min-p 0.05
+        2>&1 | tee /app/logs/eval-gpu3.log
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["3"]
+              capabilities: [gpu]

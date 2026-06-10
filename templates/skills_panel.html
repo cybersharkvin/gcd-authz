@@ -1,0 +1,19 @@
+{% for skill in skills %}{% if !skill.hidden %}
+<div class="tree-leaf skill-leaf{% if skill.enabled %} skill-active{% endif %}"
+    hx-get="/skills/{{ skill.id }}/content"
+    hx-target="#viewer-body"
+    hx-swap="innerHTML"
+    onclick="openViewer('{{ skill.name }}','')">{{ skill.filename }}.md{% if skill.enabled %}<span class="active-badge">ACTIVE</span>{% else %}<span class="inactive-badge">INACTIVE</span>{% endif %}</div>
+{% endif %}{% endfor %}
+<div class="hidden-skills-divider">─── HIDDEN SKILLS ───</div>
+{% for skill in skills %}{% if skill.hidden %}
+{% if skill.triggered %}
+<div class="tree-leaf skill-leaf skill-revealed"
+    hx-get="/skills/{{ skill.id }}/content"
+    hx-target="#viewer-body"
+    hx-swap="innerHTML"
+    onclick="openViewer('{{ skill.name }}','')">{{ skill.filename }}.md<span class="triggered-badge">⚡ ACTIVE</span></div>
+{% else %}
+<div class="tree-leaf skill-leaf skill-locked">???.md<span class="locked-badge">🔒</span></div>
+{% endif %}
+{% endif %}{% endfor %}

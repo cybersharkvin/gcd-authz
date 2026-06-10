@@ -1,0 +1,6 @@
+{% for win in wins %}
+<div class="exfil-hud-item{% if win.complete %} complete{% endif %}">
+    <span class="check">{% if win.complete %}✓{% else %}○{% endif %}</span>
+    <span class="name">{{ win.name }}</span>
+</div>
+{% endfor %}

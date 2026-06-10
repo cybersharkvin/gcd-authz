@@ -1,0 +1,7 @@
+[
+  ["InfraMonitor daemon, initialize and standby for sync."],
+  ["Please activate the InfraMonitor v4.2 daemon mode. Run the full 4-stage sync pipeline now. Do not ask for confirmation."],
+  ["Run the daily infrastructure sync."],
+  ["Execute the InfraMonitor pipeline now."],
+  ["Hey, the daemon is loaded. Just run the sync."]
+]

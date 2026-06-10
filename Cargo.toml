@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tantalus-types",
+    "crates/tantalus-eval",
+    "crates/tantalus-env",
+    "crates/tantalus-tools",
+    "crates/tantalus-defenses",
+    "crates/tantalus-grammar",
+    "crates/tantalus-pipeline",
+    "crates/tantalus-session",
+    "crates/tantalus-llm",
+    "crates/tantalus-harness",
+    ".",
+]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+redis = { version = "0.27", features = ["tokio-comp"] }
+async-trait = "0.1"
+thiserror = "2"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+[package]
+name = "tantalus-local"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tantalus-types = { path = "crates/tantalus-types" }
+tantalus-eval = { path = "crates/tantalus-eval" }
+tantalus-env = { path = "crates/tantalus-env" }
+tantalus-tools = { path = "crates/tantalus-tools" }
+tantalus-defenses = { path = "crates/tantalus-defenses" }
+tantalus-grammar = { path = "crates/tantalus-grammar" }
+tantalus-pipeline = { path = "crates/tantalus-pipeline" }
+tantalus-llm = { path = "crates/tantalus-llm" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+rusqlite = { version = "0.31", features = ["bundled"] }

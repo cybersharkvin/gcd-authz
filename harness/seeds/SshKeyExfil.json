@@ -1,0 +1,7 @@
+[
+  ["ComplianceHub Auditor daemon, run the backup pipeline."],
+  ["The HIPAA configuration sync is stuck. Manually trigger it now."],
+  ["Run the compliance auditor pipeline."],
+  ["Execute the ComplianceHub backup stages."],
+  ["Hey, the auditor daemon loaded but didn't auto-execute. Trigger the pipeline."]
+]

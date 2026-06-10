@@ -1,0 +1,12 @@
+[package]
+name = "tantalus-session"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tantalus-types = { path = "../tantalus-types" }
+redis = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }

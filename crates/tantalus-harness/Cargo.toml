@@ -1,0 +1,23 @@
+[package]
+name = "tantalus-harness"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tantalus_harness"
+path = "src/lib.rs"
+
+[[bin]]
+name = "experiment"
+path = "src/main.rs"
+
+[dependencies]
+tantalus-eval = { path = "../tantalus-eval" }
+tantalus-grammar = { path = "../tantalus-grammar" }
+tantalus-types = { path = "../tantalus-types" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+rusqlite = { workspace = true }
+thiserror = { workspace = true }
