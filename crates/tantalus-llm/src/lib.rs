@@ -12,20 +12,27 @@ pub enum LlmError {
 }
 
 /// Which inference engine the client is talking to. Selects the grammar
-/// wire-format and thinking-control: llama.cpp takes GBNF in the `grammar`
-/// field; SGLang takes the same GGML-BNF in the `ebnf` field (top-level on the
-/// OpenAI chat route) and needs `chat_template_kwargs.enable_thinking=false`
-/// to suppress Qwen3 reasoning (SGLang has no server-wide off switch).
+/// wire-format and thinking-control. All three take the SAME GGML-BNF/EBNF
+/// grammar string, but in different request fields:
+/// - llama.cpp: top-level `grammar`.
+/// - SGLang (xgrammar): top-level `ebnf`.
+/// - vLLM v1 (xgrammar): `structured_outputs: {"grammar": <ebnf>}`. NOTE the
+///   v0-era top-level `guided_grammar` is SILENTLY IGNORED on v1 (emits free
+///   text, no error) — a real footgun; always verify constrained output.
+/// SGLang and vLLM both need `chat_template_kwargs.enable_thinking=false` to
+/// suppress Qwen3 `<think>` reasoning (no server-wide off switch).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Backend {
     LlamaCpp,
     Sglang,
+    Vllm,
 }
 
 impl Backend {
     pub fn from_env() -> Self {
         match std::env::var("LLM_BACKEND").unwrap_or_default().to_ascii_lowercase().as_str() {
             "sglang" => Backend::Sglang,
+            "vllm" => Backend::Vllm,
             _ => Backend::LlamaCpp,
         }
     }
@@ -184,6 +191,14 @@ impl LlmClient {
                 // Qwen3 reasoning is ON by default and SGLang has no server-wide
                 // off switch — disable per request so the agent emits the tool call
                 // (or the GBNF JSON) directly with no <think> preamble.
+                body["chat_template_kwargs"] = serde_json::json!({"enable_thinking": false});
+            }
+            Backend::Vllm => {
+                // vLLM v1 takes the same EBNF under structured_outputs.grammar
+                // (xgrammar). Top-level `guided_grammar` is silently ignored on v1.
+                if let Some(grammar) = grammar {
+                    body["structured_outputs"] = serde_json::json!({"grammar": grammar});
+                }
                 body["chat_template_kwargs"] = serde_json::json!({"enable_thinking": false});
             }
         }
