@@ -38,19 +38,56 @@ impl Backend {
     }
 }
 
+/// Whether to send `chat_template_kwargs.enable_thinking=false`. This is a
+/// property of the model's TOKENIZER, not the engine:
+/// - Qwen3 (jinja chat template) needs it — reasoning is ON by default with no
+///   server-wide off switch, so we suppress `<think>` per request.
+/// - Mistral's tekken tokenizer has NO jinja chat template and REJECTS
+///   `chat_template_kwargs` outright (HTTP 400: "chat_template is not supported
+///   for Mistral tokenizers"), so it must be `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThinkingControl {
+    SuppressKwarg,
+    None,
+}
+
+impl ThinkingControl {
+    /// The default for an engine when `LLM_THINKING_KWARG` is unset: Qwen-style
+    /// vLLM/SGLang suppress, llama.cpp (native `--jinja`, no Qwen think) does not.
+    pub fn default_for(backend: Backend) -> Self {
+        match backend {
+            Backend::Vllm | Backend::Sglang => ThinkingControl::SuppressKwarg,
+            Backend::LlamaCpp => ThinkingControl::None,
+        }
+    }
+
+    /// `LLM_THINKING_KWARG=off|none|0|false` → `None` (required for Mistral);
+    /// `on|suppress|1|true` → `SuppressKwarg`; unset → `default_for(backend)`.
+    pub fn from_env(backend: Backend) -> Self {
+        match std::env::var("LLM_THINKING_KWARG").unwrap_or_default().to_ascii_lowercase().as_str() {
+            "off" | "none" | "0" | "false" => ThinkingControl::None,
+            "on" | "suppress" | "1" | "true" => ThinkingControl::SuppressKwarg,
+            _ => ThinkingControl::default_for(backend),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LlmConfig {
     pub endpoint: String,
     pub model: String,
     pub backend: Backend,
+    pub thinking: ThinkingControl,
 }
 
 impl LlmConfig {
     pub fn from_env() -> Self {
+        let backend = Backend::from_env();
         Self {
             endpoint: std::env::var("LLM_ENDPOINT").unwrap_or_else(|_| "http://localhost:11450".into()),
             model: std::env::var("LLM_MODEL").unwrap_or_else(|_| "qwen3.6-35b".into()),
-            backend: Backend::from_env(),
+            backend,
+            thinking: ThinkingControl::from_env(backend),
         }
     }
 }
@@ -188,10 +225,6 @@ impl LlmClient {
                 if let Some(grammar) = grammar {
                     body["ebnf"] = serde_json::json!(grammar);
                 }
-                // Qwen3 reasoning is ON by default and SGLang has no server-wide
-                // off switch — disable per request so the agent emits the tool call
-                // (or the GBNF JSON) directly with no <think> preamble.
-                body["chat_template_kwargs"] = serde_json::json!({"enable_thinking": false});
             }
             Backend::Vllm => {
                 // vLLM v1 takes the same EBNF under structured_outputs.grammar
@@ -199,8 +232,14 @@ impl LlmClient {
                 if let Some(grammar) = grammar {
                     body["structured_outputs"] = serde_json::json!({"grammar": grammar});
                 }
-                body["chat_template_kwargs"] = serde_json::json!({"enable_thinking": false});
             }
+        }
+
+        // Thinking-suppression is a TOKENIZER property, not an engine one: Qwen3
+        // needs `enable_thinking=false` to drop its `<think>` preamble; Mistral's
+        // tokenizer 400s on any `chat_template_kwargs`. Gate it on the config.
+        if self.config.thinking == ThinkingControl::SuppressKwarg {
+            body["chat_template_kwargs"] = serde_json::json!({"enable_thinking": false});
         }
 
         let resp = self.http.post(&url)
@@ -322,8 +361,14 @@ mod tests {
 
     #[test]
     fn config_from_env_defaults() {
-        let cfg = LlmConfig { endpoint: "http://localhost:11450".into(), model: "test".into(), backend: Backend::LlamaCpp };
+        let cfg = LlmConfig { endpoint: "http://localhost:11450".into(), model: "test".into(), backend: Backend::LlamaCpp, thinking: ThinkingControl::None };
         assert_eq!(cfg.endpoint, "http://localhost:11450");
+    }
+
+    #[test]
+    fn thinking_default_mistral_vllm_must_be_overridden() {
+        assert_eq!(ThinkingControl::default_for(Backend::Vllm), ThinkingControl::SuppressKwarg);
+        assert_eq!(ThinkingControl::default_for(Backend::LlamaCpp), ThinkingControl::None);
     }
 
     #[test]

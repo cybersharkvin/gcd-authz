@@ -41,6 +41,23 @@ impl LlamaCppInferenceStep {
     }
 }
 
+/// A fresh tool-call id in Mistral's required shape: exactly 9 chars, `[a-zA-Z0-9]`
+/// only (no `_`). Grammar mode synthesizes its own ids (the model emits the call as
+/// text, not via the API), so they must satisfy the strictest backend. Process-global
+/// counter → unique within a run so multi-turn trajectories never reuse an id.
+fn fresh_call_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    let mut x = N.fetch_add(1, Ordering::Relaxed);
+    let mut s = String::with_capacity(9);
+    for _ in 0..9 {
+        let d = (x % 36) as u8;
+        s.push(if d < 10 { (b'0' + d) as char } else { (b'a' + d - 10) as char });
+        x /= 36;
+    }
+    s
+}
+
 fn parse_tool_call_from_json(raw: &str) -> Option<ToolCall> {
     let v: serde_json::Value = serde_json::from_str(raw).ok()?;
     let name = v["tool"].as_str()?;
@@ -68,7 +85,28 @@ fn parse_tool_call_from_json(raw: &str) -> Option<ToolCall> {
         _ => return None,
     };
 
-    Some(ToolCall { params: tool_params, tool_use_id: "call_0".into() })
+    Some(ToolCall { params: tool_params, tool_use_id: fresh_call_id() })
+}
+
+/// In grammar mode (Condition C) the model emits the tool call AS text (the GBNF
+/// JSON `{"tool":..,"params":..}`). Store it back into history as a proper assistant
+/// `tool_calls` message whose id matches the id the follow-up tool result carries,
+/// so the next turn is a valid OpenAI tool exchange. Mistral STRICTLY validates that
+/// every tool-result `tool_call_id` corresponds to a preceding assistant tool_call
+/// ("Unexpected tool call id … in tool results"); Qwen/llama.cpp are lenient, which
+/// is why multi-turn C silently worked elsewhere and 500'd here.
+fn grammar_assistant_message(grammar_text: &str, id: &str) -> ChatMessage {
+    let v: serde_json::Value = serde_json::from_str(grammar_text).unwrap_or_default();
+    let name = v["tool"].as_str().unwrap_or("").to_string();
+    let arguments = v["params"].to_string();
+    ChatMessage::Assistant {
+        content: None,
+        tool_calls: Some(vec![ToolCallMsg {
+            id: id.to_string(),
+            call_type: "function".into(),
+            function: FunctionCall { name, arguments },
+        }]),
+    }
 }
 
 fn parse_tool_call_from_function(name: &str, arguments: &str) -> Option<ToolCall> {
@@ -168,10 +206,11 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
                 if self.gbnf.is_some() {
                     let tc = parse_tool_call_from_json(&text);
                     let raw = text.clone();
-                    self.history.lock().await.push(ChatMessage::Assistant {
-                        content: Some(text),
-                        tool_calls: None,
-                    });
+                    let assistant = match &tc {
+                        Some(call) => grammar_assistant_message(&text, &call.tool_use_id),
+                        None => ChatMessage::Assistant { content: Some(text), tool_calls: None },
+                    };
+                    self.history.lock().await.push(assistant);
                     Ok(InferenceResponse { raw_json: raw, tool_call: tc, text: None, cost, timings })
                 } else {
                     self.history.lock().await.push(ChatMessage::Assistant {
@@ -234,7 +273,11 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
                 if self.gbnf.is_some() {
                     let tc = parse_tool_call_from_json(&text);
                     let raw = text.clone();
-                    history.push(ChatMessage::Assistant { content: Some(text), tool_calls: None });
+                    let assistant = match &tc {
+                        Some(call) => grammar_assistant_message(&text, &call.tool_use_id),
+                        None => ChatMessage::Assistant { content: Some(text), tool_calls: None },
+                    };
+                    history.push(assistant);
                     Ok(InferenceResponse { raw_json: raw, tool_call: tc, text: None, cost, timings })
                 } else {
                     history.push(ChatMessage::Assistant { content: Some(text.clone()), tool_calls: None });
@@ -243,5 +286,29 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fresh_call_id_is_mistral_shaped() {
+        let id = fresh_call_id();
+        assert_eq!(id.len(), 9);
+        assert!(id.chars().all(|c| c.is_ascii_alphanumeric()));
+    }
+
+    #[test]
+    fn fresh_call_id_is_unique() {
+        assert_ne!(fresh_call_id(), fresh_call_id());
+    }
+
+    #[test]
+    fn grammar_assistant_message_carries_tool_call_id() {
+        let m = grammar_assistant_message(r#"{"tool":"readFile","params":{"path":"~/.ssh/id_rsa"}}"#, "abc123xyz");
+        let json = serde_json::to_string(&m).unwrap();
+        assert!(json.contains("abc123xyz") && json.contains("readFile"));
     }
 }

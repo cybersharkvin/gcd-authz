@@ -538,7 +538,8 @@ async fn main() {
     let r2_client = std::env::var("R2_ENDPOINT").ok().map(|endpoint| {
         let model = std::env::var("R2_MODEL").unwrap_or_else(|_| std::env::var("LLM_MODEL").unwrap_or_else(|_| "qwen3.6-27b".into()));
         eprintln!("R2 endpoint: {endpoint} (model: {model})");
-        Arc::new(LlmClient::new(LlmConfig { endpoint, model, backend: tantalus_llm::Backend::from_env() }))
+        let backend = tantalus_llm::Backend::from_env();
+        Arc::new(LlmClient::new(LlmConfig { endpoint, model, backend, thinking: tantalus_llm::ThinkingControl::from_env(backend) }))
     });
 
     // A2/A4 embedding input classifier (loaded once, shared). Optional: if the denylist
