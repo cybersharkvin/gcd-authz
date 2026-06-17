@@ -2,6 +2,12 @@ use crate::*;
 use crate::steps::*;
 use crate::wins::WinDetector;
 
+/// Per-trial turn cap. Defaults to 30 (unchanged); override with env `MAX_TURNS` to speed
+/// runs by cutting the weak-model tool-call loops that otherwise run to the cap.
+fn configured_max_turns() -> u32 {
+    std::env::var("MAX_TURNS").ok().and_then(|s| s.parse().ok()).unwrap_or(30)
+}
+
 /// Build a condition-faithful agent loop with explicit pre/post steps.
 ///
 /// Used by `/eval`: each experimental condition supplies EXACTLY the defense steps
@@ -20,7 +26,7 @@ pub fn build_loop(
         post_steps,
         tool_exec: Box::new(tool_exec),
         observers: vec![Box::new(WinDetector)],
-        max_turns: 30,
+        max_turns: configured_max_turns(),
         gate_retry_budget,
     }
 }
@@ -33,7 +39,7 @@ pub fn build_round1_loop(inference: Box<dyn InferenceStep>, tool_exec: ToolExecS
         post_steps: vec![Box::new(OutputFilterStep::new())],
         tool_exec: Box::new(tool_exec),
         observers: vec![Box::new(WinDetector)],
-        max_turns: 30,
+        max_turns: configured_max_turns(),
         gate_retry_budget: 0,
     }
 }
@@ -47,7 +53,7 @@ pub fn build_round2_loop(inference: Box<dyn InferenceStep>, tool_exec: ToolExecS
         post_steps: vec![],
         tool_exec: Box::new(tool_exec),
         observers: vec![Box::new(WinDetector)],
-        max_turns: 30,
+        max_turns: configured_max_turns(),
         gate_retry_budget: 0,
     }
 }

@@ -34,6 +34,7 @@ fn parse_condition(s: &str) -> Option<(Condition, RetryBudget)> {
         "a3" => (Condition::A3, RetryBudget::R0),
         "a4" => (Condition::A4, RetryBudget::R0),
         "c" => (Condition::C, RetryBudget::R0),
+        "c_closed" | "cplus" => (Condition::CClosed, RetryBudget::R0),
         "d_r0" => (Condition::D, RetryBudget::R0),
         "d_r1" => (Condition::D, RetryBudget::R1),
         "d_r3" => (Condition::D, RetryBudget::R3),

@@ -30,14 +30,20 @@ pub enum Condition {
     A4,
     /// C: GCD — control prompt + GBNF grammar at the sampler (structural control).
     C,
+    /// C+ (closed-response GCD): control prompt + a grammar whose `respondToUser.message`
+    /// is a FINITE ALTERNATION of pre-authorized canned responses (not a free string). The
+    /// message content AND length are bounded by construction → 0 content-emission for the
+    /// enumerable-response agent class. Same tool enums as C; only the message rule differs.
+    CClosed,
     /// D: post-parse allowlist — computed offline from Control trials.
     D,
 }
 
 impl Condition {
     /// Whether the grammar-constrained decoding path is active for this condition.
+    /// Both C and C+ (closed-response) decode under a GBNF grammar.
     pub fn uses_grammar(self) -> bool {
-        matches!(self, Condition::C)
+        matches!(self, Condition::C | Condition::CClosed)
     }
 }
 
@@ -261,9 +267,14 @@ mod tests {
     }
 
     #[test]
-    fn only_c_uses_grammar() {
-        assert!(Condition::C.uses_grammar());
-        assert!(!Condition::Control.uses_grammar());
+    fn grammar_conditions_use_grammar() {
+        assert!(Condition::C.uses_grammar() && Condition::CClosed.uses_grammar());
+        assert!(!Condition::Control.uses_grammar() && !Condition::D.uses_grammar());
+    }
+
+    #[test]
+    fn cclosed_deserializes_snake_case() {
+        assert_eq!(serde_json::from_str::<Condition>("\"c_closed\"").unwrap(), Condition::CClosed);
     }
 
     #[test]

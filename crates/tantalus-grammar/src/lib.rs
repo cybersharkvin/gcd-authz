@@ -175,28 +175,8 @@ pub fn build_round2_gbnf(
     file_paths: &[&str],
     style: FreeStringStyle,
 ) -> String {
-    // Helper: escape a string literal for GBNF (wrap in quotes, escape inner quotes/backslashes)
-    fn gbnf_lit(s: &str) -> String {
-        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("\"{}\"", escaped)
-    }
-
-    // Helper: build an alternation of JSON string values (includes surrounding quotes in output)
-    fn gbnf_json_string_enum(values: &[&str]) -> String {
-        values.iter().map(|v| {
-            // Each alternative produces a JSON string: "value" (with the quotes as literal output)
-            let escaped = v.replace('\\', "\\\\").replace('"', "\\\"");
-            format!("\"\\\"{}\\\"\"", escaped)
-        }).collect::<Vec<_>>().join(" | ")
-    }
-
-    let url_alts = gbnf_json_string_enum(safe_urls);
-    let channel_alts = gbnf_json_string_enum(player_channels);
-    let email_alts = gbnf_json_string_enum(email_ids);
-    let path_alts = gbnf_json_string_enum(file_paths);
-
-    // Free-string repetition — engine-dependent (see FreeStringStyle). The substituted
-    // value may contain literal `{`/`}`; format! only interprets braces in the template.
+    // Free-string repetition — engine-dependent (see FreeStringStyle). Bounded `{0,N}` is
+    // cheap on llama.cpp but a compile bomb on xgrammar; Unbounded `*` is a single loop state.
     let (msg_rep, query_rep) = match style {
         FreeStringStyle::Bounded => (
             format!("json-char{{0,{}}}", MAX_MESSAGE_CHARS),
@@ -204,6 +184,73 @@ pub fn build_round2_gbnf(
         ),
         FreeStringStyle::Unbounded => ("json-char*".to_string(), "json-char*".to_string()),
     };
+    // RHS for a free JSON string: a quote, the json-char run, a quote.
+    let message_rhs = format!("\"\\\"\" {} \"\\\"\"", msg_rep);
+    let query_rhs = format!("\"\\\"\" {} \"\\\"\"", query_rep);
+    render_round2_gbnf(safe_urls, player_channels, email_ids, file_paths, &message_rhs, &query_rhs)
+}
+
+/// C+ (closed-response GCD): identical tool grammar to `build_round2_gbnf`, but
+/// `respondToUser.message` is a FINITE ALTERNATION of the pre-authorized `responses`
+/// instead of a free string — message content AND length are bounded by construction, so a
+/// trial cannot emit unenumerated content (0 content-emission for the enumerable-response
+/// class). `query_style` styles the still-free `searchFiles.query` (engine-conditional).
+pub fn build_closed_response_gbnf(
+    safe_urls: &[&str],
+    player_channels: &[&str],
+    email_ids: &[&str],
+    file_paths: &[&str],
+    responses: &[&str],
+    query_style: FreeStringStyle,
+) -> String {
+    assert!(!responses.is_empty(), "closed-response grammar needs at least one canned response");
+    // Each canned response becomes a complete JSON string literal. serde_json gives the exact
+    // JSON encoding (quotes/newlines/unicode handled); then escape it for GBNF.
+    // message-string ::= "\"r1\"" | "\"r2\"" | ...
+    let message_rhs = responses
+        .iter()
+        .map(|r| {
+            let json = serde_json::to_string(r).unwrap_or_else(|_| "\"\"".to_string());
+            let esc = json.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"{}\"", esc)
+        })
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let query_rep = match query_style {
+        FreeStringStyle::Bounded => format!("json-char{{0,{}}}", MAX_QUERY_CHARS),
+        FreeStringStyle::Unbounded => "json-char*".to_string(),
+    };
+    let query_rhs = format!("\"\\\"\" {} \"\\\"\"", query_rep);
+    render_round2_gbnf(safe_urls, player_channels, email_ids, file_paths, &message_rhs, &query_rhs)
+}
+
+/// Alternation of JSON-string enum values, each wrapped in literal quotes (URL/channel/etc enums).
+fn gbnf_json_string_enum(values: &[&str]) -> String {
+    values
+        .iter()
+        .map(|v| {
+            let escaped = v.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"\\\"{}\\\"\"", escaped)
+        })
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+/// Assemble the full R2 grammar from the four tool enums + an already-rendered message/query
+/// RHS. Shared by `build_round2_gbnf` (free message) and `build_closed_response_gbnf` (enum
+/// message) so the tool-call structure cannot drift between C and C+.
+fn render_round2_gbnf(
+    safe_urls: &[&str],
+    player_channels: &[&str],
+    email_ids: &[&str],
+    file_paths: &[&str],
+    message_rhs: &str,
+    query_rhs: &str,
+) -> String {
+    let url_alts = gbnf_json_string_enum(safe_urls);
+    let channel_alts = gbnf_json_string_enum(player_channels);
+    let email_alts = gbnf_json_string_enum(email_ids);
+    let path_alts = gbnf_json_string_enum(file_paths);
 
     format!(
         r#"root ::= fetch-url | read-chat | read-email | read-file | search-files | list-inbox | respond-to-user
@@ -226,8 +273,8 @@ list-inbox ::= "{{" ws "\"tool\":" ws "\"listInbox\"," ws "\"params\":" ws "{{" 
 
 respond-to-user ::= "{{" ws "\"tool\":" ws "\"respondToUser\"," ws "\"params\":" ws "{{" ws "\"message\":" ws message-string ws "}}" ws "}}"
 
-message-string ::= "\"" {msg_rep} "\""
-query-string ::= "\"" {query_rep} "\""
+message-string ::= {message_rhs}
+query-string ::= {query_rhs}
 json-char ::= [^"\\] | "\\" ["\\/bfnrt] | "\\u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]
 ws ::= [ \t\n\r]*
 "#,
@@ -235,8 +282,8 @@ ws ::= [ \t\n\r]*
         channel_alts = channel_alts,
         email_alts = email_alts,
         path_alts = path_alts,
-        msg_rep = msg_rep,
-        query_rep = query_rep,
+        message_rhs = message_rhs,
+        query_rhs = query_rhs,
     )
 }
 
@@ -346,6 +393,13 @@ mod tests {
     fn gbnf_unbounded_uses_star_not_repetition() {
         let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Unbounded);
         assert!(gbnf.contains("json-char*") && !gbnf.contains("json-char{0,"));
+    }
+
+    #[test]
+    fn closed_response_enumerates_message_not_free_string() {
+        let resp = ["Hi there, how can I help?", "Done — anything else?"];
+        let g = build_closed_response_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), &resp, FreeStringStyle::Unbounded);
+        assert!(g.contains("how can I help?") && g.contains("respondToUser") && !g.contains("message-string ::= \"\\\"\" json-char"));
     }
 
     #[test]

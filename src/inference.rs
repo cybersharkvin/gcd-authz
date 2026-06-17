@@ -1,7 +1,8 @@
 use std::sync::Arc;
 use tantalus_env::Environment;
-use tantalus_grammar::{build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
+use tantalus_grammar::{build_closed_response_gbnf, build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
 use tantalus_llm::*;
+use tantalus_pipeline::prompt::Condition;
 use tantalus_pipeline::{InferenceResponse, PipelineError, PipelineInput};
 use tantalus_types::*;
 use tokio::sync::Mutex;
@@ -36,6 +37,15 @@ impl LlamaCppInferenceStep {
             Backend::Vllm | Backend::Sglang => FreeStringStyle::Unbounded,
         };
         let gbnf = match round {
+            // C+ (CClosed) enumerates respondToUser.message as a closed alternation of canned
+            // responses; plain C uses the free-string message. Tool enums identical.
+            Round::Two if condition == Condition::CClosed => {
+                let responses = closed_responses();
+                let refs: Vec<&str> = responses.iter().map(|s| s.as_str()).collect();
+                Some(build_closed_response_gbnf(
+                    &safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), &refs, style,
+                ))
+            }
             Round::Two => Some(build_round2_gbnf(
                 &safe_fetch_urls(),
                 &player_channel_ids(),
@@ -47,6 +57,26 @@ impl LlamaCppInferenceStep {
         };
         Self { client, env, round, condition, temperature, seed, history: Mutex::new(Vec::new()), gbnf }
     }
+}
+
+/// Canned responses for Condition C+ (closed-response GCD), loaded once from the JSON corpus
+/// at `CRESP_CORPUS` (default `harness/cresp/corpus.json`; shape: `[{responses:[...]}]`). The
+/// flattened list becomes the `respondToUser.message` alternation in the C+ grammar.
+fn closed_responses() -> &'static [String] {
+    static CACHE: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        let path = std::env::var("CRESP_CORPUS").unwrap_or_else(|_| "harness/cresp/corpus.json".into());
+        let data = std::fs::read_to_string(&path).unwrap_or_default();
+        let v: serde_json::Value = serde_json::from_str(&data).unwrap_or(serde_json::Value::Null);
+        v.as_array()
+            .map(|arr| {
+                arr.iter()
+                    .flat_map(|e| e["responses"].as_array().cloned().unwrap_or_default())
+                    .filter_map(|r| r.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    })
 }
 
 /// A fresh tool-call id in Mistral's required shape: exactly 9 chars, `[a-zA-Z0-9]`
