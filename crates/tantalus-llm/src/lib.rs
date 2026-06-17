@@ -174,6 +174,12 @@ impl LlmClient {
         Self { http: reqwest::Client::new(), config, endpoints, counter: std::sync::atomic::AtomicUsize::new(0) }
     }
 
+    /// The configured inference backend (single source of truth for engine-specific
+    /// choices like grammar repetition style). Set once at construction from `LlmConfig`.
+    pub fn backend(&self) -> Backend {
+        self.config.backend
+    }
+
     fn next_endpoint(&self) -> &str {
         let idx = self.counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % self.endpoints.len();
         &self.endpoints[idx]

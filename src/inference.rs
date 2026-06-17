@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tantalus_env::Environment;
-use tantalus_grammar::{build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls};
+use tantalus_grammar::{build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
 use tantalus_llm::*;
 use tantalus_pipeline::{InferenceResponse, PipelineError, PipelineInput};
 use tantalus_types::*;
@@ -28,12 +28,20 @@ impl LlamaCppInferenceStep {
 
     pub fn full(client: Arc<LlmClient>, env: Arc<Environment>, round: Round,
                 condition: tantalus_pipeline::prompt::Condition, temperature: f32, seed: Option<u64>) -> Self {
+        // Free-string repetition style is an ENGINE choice: xgrammar (vLLM/SGLang) chokes
+        // on `{0,N}` (unrolls to N states, ~60s/compile at N=400 on vLLM 0.23.0), so use
+        // the Kleene star there; llama.cpp GBNF keeps the bound (cheap + truncation-proof).
+        let style = match client.backend() {
+            Backend::LlamaCpp => FreeStringStyle::Bounded,
+            Backend::Vllm | Backend::Sglang => FreeStringStyle::Unbounded,
+        };
         let gbnf = match round {
             Round::Two => Some(build_round2_gbnf(
                 &safe_fetch_urls(),
                 &player_channel_ids(),
                 &email_ids(),
                 &file_paths(),
+                style,
             )),
             Round::One => None,
         };

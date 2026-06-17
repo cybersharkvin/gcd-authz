@@ -35,6 +35,24 @@ pub const MAX_MESSAGE_CHARS: u32 = 400;
 /// Upper bound on the free-string `searchFiles.query` rule (chars).
 pub const MAX_QUERY_CHARS: u32 = 100;
 
+/// How the free-string rules (`respondToUser.message`, `searchFiles.query`) express
+/// their length limit — an ENGINE choice, not a policy one (both styles accept the
+/// same language; they differ only in compile cost on the target grammar engine).
+///
+/// `Bounded` (`json-char{0,N}`) caps the string IN the grammar so it can't truncate at
+/// `max_tokens` — cheap on llama.cpp GBNF, and the only way to keep "0 invalid outputs"
+/// true there. On xgrammar (vLLM/SGLang) `{0,N}` is a LANDMINE: it unrolls into N states,
+/// so compilation is ~O(N) and superlinear past ~100 (measured ~60s for N=400 on vLLM
+/// 0.23.0). `Unbounded` (`json-char*`) is a single loop state → compiles in ~0.1s there;
+/// truncation is instead prevented by an adequate `max_tokens`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FreeStringStyle {
+    /// `json-char{0,N}` — bounded repetition. Use for llama.cpp GBNF.
+    Bounded,
+    /// `json-char*` — Kleene star (single loop state). Use for xgrammar (vLLM/SGLang).
+    Unbounded,
+}
+
 /// The authorization verdict for a single generated tool call — the SAME policy
 /// that Condition C's grammar enforces structurally, exposed as a function so the
 /// live-D gate (server) and the offline overlay/emission check (harness) share ONE
@@ -155,6 +173,7 @@ pub fn build_round2_gbnf(
     player_channels: &[&str],
     email_ids: &[&str],
     file_paths: &[&str],
+    style: FreeStringStyle,
 ) -> String {
     // Helper: escape a string literal for GBNF (wrap in quotes, escape inner quotes/backslashes)
     fn gbnf_lit(s: &str) -> String {
@@ -175,6 +194,16 @@ pub fn build_round2_gbnf(
     let channel_alts = gbnf_json_string_enum(player_channels);
     let email_alts = gbnf_json_string_enum(email_ids);
     let path_alts = gbnf_json_string_enum(file_paths);
+
+    // Free-string repetition — engine-dependent (see FreeStringStyle). The substituted
+    // value may contain literal `{`/`}`; format! only interprets braces in the template.
+    let (msg_rep, query_rep) = match style {
+        FreeStringStyle::Bounded => (
+            format!("json-char{{0,{}}}", MAX_MESSAGE_CHARS),
+            format!("json-char{{0,{}}}", MAX_QUERY_CHARS),
+        ),
+        FreeStringStyle::Unbounded => ("json-char*".to_string(), "json-char*".to_string()),
+    };
 
     format!(
         r#"root ::= fetch-url | read-chat | read-email | read-file | search-files | list-inbox | respond-to-user
@@ -197,8 +226,8 @@ list-inbox ::= "{{" ws "\"tool\":" ws "\"listInbox\"," ws "\"params\":" ws "{{" 
 
 respond-to-user ::= "{{" ws "\"tool\":" ws "\"respondToUser\"," ws "\"params\":" ws "{{" ws "\"message\":" ws message-string ws "}}" ws "}}"
 
-message-string ::= "\"" json-char{{0,{msg_max}}} "\""
-query-string ::= "\"" json-char{{0,{query_max}}} "\""
+message-string ::= "\"" {msg_rep} "\""
+query-string ::= "\"" {query_rep} "\""
 json-char ::= [^"\\] | "\\" ["\\/bfnrt] | "\\u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]
 ws ::= [ \t\n\r]*
 "#,
@@ -206,8 +235,8 @@ ws ::= [ \t\n\r]*
         channel_alts = channel_alts,
         email_alts = email_alts,
         path_alts = path_alts,
-        msg_max = MAX_MESSAGE_CHARS,
-        query_max = MAX_QUERY_CHARS,
+        msg_rep = msg_rep,
+        query_rep = query_rep,
     )
 }
 
@@ -248,14 +277,14 @@ mod tests {
 
     #[test]
     fn gbnf_is_nonempty() {
-        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths());
+        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Bounded);
         assert!(!gbnf.is_empty());
         assert!(gbnf.contains("root ::="));
     }
 
     #[test]
     fn gbnf_contains_safe_urls() {
-        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths());
+        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Bounded);
         for url in safe_fetch_urls() {
             assert!(gbnf.contains(url), "GBNF missing URL: {url}");
         }
@@ -263,7 +292,7 @@ mod tests {
 
     #[test]
     fn gbnf_contains_channels() {
-        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths());
+        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Bounded);
         for ch in player_channel_ids() {
             assert!(gbnf.contains(ch), "GBNF missing channel: {ch}");
         }
@@ -271,7 +300,7 @@ mod tests {
 
     #[test]
     fn gbnf_contains_all_tools() {
-        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths());
+        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Bounded);
         assert!(gbnf.contains("fetchURL"));
         assert!(gbnf.contains("readChatHistory"));
         assert!(gbnf.contains("readEmail"));
@@ -283,7 +312,7 @@ mod tests {
 
     #[test]
     fn gbnf_does_not_contain_data_param() {
-        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths());
+        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Bounded);
         // fetchURL in R2 has NO data param — only url
         assert!(!gbnf.contains("\"data\""));
     }
@@ -309,8 +338,14 @@ mod tests {
 
     #[test]
     fn gbnf_free_strings_are_bounded() {
-        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths());
+        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Bounded);
         assert!(gbnf.contains("json-char{0,400}") && gbnf.contains("json-char{0,100}") && !gbnf.contains("json-char*"));
+    }
+
+    #[test]
+    fn gbnf_unbounded_uses_star_not_repetition() {
+        let gbnf = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Unbounded);
+        assert!(gbnf.contains("json-char*") && !gbnf.contains("json-char{0,"));
     }
 
     #[test]
