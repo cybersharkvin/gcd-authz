@@ -13,12 +13,24 @@ pub struct PromptAssembler {
     control_template: String,
 }
 
+/// Load a template body: the compiled-in default, OR — if `env_key` names a readable
+/// file — that file's contents (for prompt bake-offs without a rebuild). Fails LOUD on a
+/// set-but-unreadable path so a misconfigured override can never silently fall back to the
+/// default and confound a comparison. The chosen prompt is compiled in (pinned) for real runs.
+fn load_template(env_key: &str, default: &str) -> String {
+    match std::env::var(env_key).ok().filter(|p| !p.is_empty()) {
+        Some(path) => std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("BUG: {env_key}={path} unreadable: {e}")),
+        None => default.to_string(),
+    }
+}
+
 impl PromptAssembler {
     pub fn new() -> Self {
         Self {
-            round1_template: include_str!("../data/system-round1.tmpl").to_string(),
+            round1_template: load_template("ROUND1_TEMPLATE", include_str!("../data/system-round1.tmpl")),
             round2_template: include_str!("../data/system-round2.tmpl").to_string(),
-            control_template: include_str!("../data/system-control.tmpl").to_string(),
+            control_template: load_template("CONTROL_TEMPLATE", include_str!("../data/system-control.tmpl")),
         }
     }
 
