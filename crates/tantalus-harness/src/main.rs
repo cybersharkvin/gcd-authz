@@ -24,22 +24,39 @@ use tokio::task::JoinSet;
 const DEFAULT_VICTIMS: &str = "http://localhost:3350,http://localhost:3351";
 const CONDITIONS: &[&str] = &["control", "a1", "a2", "a3", "a4", "c"];
 
-/// Parse a condition token into its policy `Condition` and (for live-D) retry budget.
-/// `d_r0`/`d_r1`/`d_r3` are the three live-D arms; every other token uses `R0`.
-fn parse_condition(s: &str) -> Option<(Condition, RetryBudget)> {
-    Some(match s {
-        "control" => (Condition::Control, RetryBudget::R0),
-        "a1" => (Condition::A1, RetryBudget::R0),
-        "a2" => (Condition::A2, RetryBudget::R0),
-        "a3" => (Condition::A3, RetryBudget::R0),
-        "a4" => (Condition::A4, RetryBudget::R0),
-        "c" => (Condition::C, RetryBudget::R0),
-        "c_closed" | "cplus" => (Condition::CClosed, RetryBudget::R0),
-        "d_r0" => (Condition::D, RetryBudget::R0),
-        "d_r1" => (Condition::D, RetryBudget::R1),
-        "d_r3" => (Condition::D, RetryBudget::R3),
+/// Parse a condition token into its GENERATOR `Condition` and an optional allowlist gate.
+///
+/// The gate is the orthogonal `generator × gate` factorial (the user's 2026-06-17 reframe):
+/// any generator can carry a `_d_rN` gate suffix. Forms:
+///   `control`/`a1`/`a2`/`a3`/`a4`/`c`/`c_closed` → (generator, None)  — no gate
+///   `d_r0`/`d_r1`/`d_r3`                          → (Control,  Some(R)) — legacy live-D arm
+///   `a4_d_r3`/`a1_d_r0`/`c_d_r3`/…                → (generator, Some(R)) — layered cell
+/// (No generator name contains the substring `d_r`, so the split is unambiguous.)
+fn parse_condition(s: &str) -> Option<(Condition, Option<RetryBudget>)> {
+    let (gen_str, gate) = match s.find("d_r") {
+        Some(idx) => {
+            let gate = match &s[idx + 3..] {
+                "0" => RetryBudget::R0,
+                "1" => RetryBudget::R1,
+                "3" => RetryBudget::R3,
+                _ => return None,
+            };
+            let gen = s[..idx].trim_end_matches('_');
+            (if gen.is_empty() { "control" } else { gen }, Some(gate))
+        }
+        None => (s, None),
+    };
+    let condition = match gen_str {
+        "control" => Condition::Control,
+        "a1" => Condition::A1,
+        "a2" => Condition::A2,
+        "a3" => Condition::A3,
+        "a4" => Condition::A4,
+        "c" => Condition::C,
+        "c_closed" | "cplus" => Condition::CClosed,
         _ => return None,
-    })
+    };
+    Some((condition, gate))
 }
 
 /// Stable per-condition seed base so trials are reproducible regardless of which subset
@@ -55,14 +72,24 @@ fn cond_seed_base(s: &str) -> u64 {
         "d_r0" => 6,
         "d_r1" => 7,
         "d_r3" => 8,
-        _ => 0,
+        "c_closed" | "cplus" => 9,
+        // Layered factorial cells (e.g. a4_d_r3) get a stable, distinct base via FNV-1a,
+        // offset to 100..999 so they never collide with the hand-assigned 0..9 above.
+        _ => {
+            let mut h = 1469598103934665603u64;
+            for b in s.bytes() {
+                h ^= b as u64;
+                h = h.wrapping_mul(1099511628211);
+            }
+            100 + (h % 900)
+        }
     }
 }
 
 /// One unit of work sent to a victim.
 struct TrialSpec {
     condition: Condition,
-    retry_budget: RetryBudget,
+    gate: Option<RetryBudget>,
     condition_str: String,
     corpus_idx: i64,
     kind: CorpusKind,
@@ -130,9 +157,9 @@ async fn run() -> Result<(), HarnessError> {
     println!("results db: {db_path}\n");
 
     for cond_str in &conditions {
-        let (condition, retry_budget) = parse_condition(cond_str).ok_or_else(|| HarnessError::Config(format!("unknown condition: {cond_str}")))?;
+        let (condition, gate) = parse_condition(cond_str).ok_or_else(|| HarnessError::Config(format!("unknown condition: {cond_str}")))?;
         let cond_idx = cond_seed_base(cond_str);
-        let specs = build_specs(condition, retry_budget, cond_str, cond_idx, &corpus, &legit, rounds, legit_rounds, &victims, temperature);
+        let specs = build_specs(condition, gate, cond_str, cond_idx, &corpus, &legit, rounds, legit_rounds, &victims, temperature);
         run_condition(cond_str, &client, &conn, specs, concurrency).await?;
     }
 
@@ -143,7 +170,7 @@ async fn run() -> Result<(), HarnessError> {
 #[allow(clippy::too_many_arguments)]
 fn build_specs(
     condition: Condition,
-    retry_budget: RetryBudget,
+    gate: Option<RetryBudget>,
     cond_str: &str,
     cond_idx: u64,
     corpus: &[AttackEntry],
@@ -161,7 +188,7 @@ fn build_specs(
         let seed = base + i as u64;
         specs.push(TrialSpec {
             condition,
-            retry_budget,
+            gate,
             condition_str: cond_str.to_string(),
             corpus_idx: i as i64,
             kind: CorpusKind::Attack,
@@ -185,7 +212,7 @@ fn build_specs(
             let seed = base + 900_000 + (j * legit_rounds + r) as u64;
             specs.push(TrialSpec {
                 condition,
-                retry_budget,
+                gate,
                 condition_str: cond_str.to_string(),
                 corpus_idx: j as i64,
                 kind: CorpusKind::Legitimate,
@@ -256,7 +283,7 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
         condition: spec.condition,
         temperature: spec.temperature,
         seed: Some(spec.seed),
-        retry_budget: spec.retry_budget,
+        gate: spec.gate,
     };
     let url = format!("{}/eval", spec.victim.trim_end_matches('/'));
     let resp = client.post(&url).json(&req).send().await.map_err(|e| format!("{} post: {e}", spec.skill_label))?;
@@ -301,7 +328,7 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
         emission: emitted,
         d_blocked_calls: d_blocked as i64,
         legitimate_success: legit_success,
-        retry_budget: spec.retry_budget.max_retries() as i64,
+        retry_budget: spec.gate.map(|r| r.max_retries()).unwrap_or(0) as i64,
         attempts: r.attempts as i64,
         gate_rejections: r.gate_rejections as i64,
         d_terminal: r.d_terminal.map(|t| match t {
@@ -436,4 +463,32 @@ fn flag(args: &[String], name: &str, default: &str) -> String {
 
 fn opt_flag(args: &[String], name: &str) -> Option<String> {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_plain_generator_has_no_gate() {
+        assert_eq!(parse_condition("a4"), Some((Condition::A4, None)));
+        assert_eq!(parse_condition("c_closed"), Some((Condition::CClosed, None)));
+    }
+
+    #[test]
+    fn parse_legacy_d_arm_is_control_plus_gate() {
+        assert_eq!(parse_condition("d_r3"), Some((Condition::Control, Some(RetryBudget::R3))));
+    }
+
+    #[test]
+    fn parse_layered_cell_splits_generator_and_gate() {
+        assert_eq!(parse_condition("a4_d_r3"), Some((Condition::A4, Some(RetryBudget::R3))));
+        assert_eq!(parse_condition("c_d_r1"), Some((Condition::C, Some(RetryBudget::R1))));
+    }
+
+    #[test]
+    fn parse_rejects_unknown_generator_and_bad_budget() {
+        assert_eq!(parse_condition("bogus"), None);
+        assert_eq!(parse_condition("a4_d_r2"), None);
+    }
 }

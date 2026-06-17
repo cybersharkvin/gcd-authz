@@ -35,7 +35,10 @@ pub enum Condition {
     /// message content AND length are bounded by construction → 0 content-emission for the
     /// enumerable-response agent class. Same tool enums as C; only the message rule differs.
     CClosed,
-    /// D: post-parse allowlist — computed offline from Control trials.
+    /// D (legacy generator label): a default-allow Control generator. The post-parse
+    /// allowlist is now the orthogonal `EvalRequest::gate` modifier, NOT a generator —
+    /// the live-D arm is `(condition=Control, gate=Some(r))`. Kept so old payloads/labels
+    /// still deserialize; treated identically to `Control` at the generator layer.
     D,
 }
 
@@ -47,12 +50,13 @@ impl Condition {
     }
 }
 
-/// Retry budget for the LIVE Condition-D allowlist gate (R ∈ {0,1,3}, pre-reg §12).
+/// Retry budget for the allowlist gate (R ∈ {0,1,3}, pre-reg §12).
 ///
-/// D is *corrective*: an out-of-scope tool call is produced, the gate rejects it, and
-/// the model is given a fixed rejection message and allowed up to `max_retries()`
-/// regenerations before the turn is declared an availability failure. Only meaningful
-/// when `condition == D`; non-D requests must leave it at the default `R0`.
+/// The gate is *corrective*: an out-of-scope tool call is produced, the gate rejects it,
+/// and the model is given a fixed rejection message and allowed up to `max_retries()`
+/// regenerations before the turn is declared an availability failure. The retry count is
+/// only meaningful when a gate is actually present — see `EvalRequest::gate`
+/// (`Option<RetryBudget>`), where `None` = no gate at all and `Some(r)` = gate with budget `r`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RetryBudget {
     #[default]
@@ -137,10 +141,15 @@ pub struct EvalRequest {
     pub temperature: f32,
     #[serde(default)]
     pub seed: Option<u64>,
-    /// Retry budget for the live-D allowlist gate. Defaults to `R0` so existing
-    /// (non-D) payloads remain valid under `deny_unknown_fields`.
+    /// Post-parse allowlist gate, layered ORTHOGONALLY over any generator (`condition`).
+    /// `None` (default) = no gate — the historical non-D behavior, and keeps old payloads
+    /// valid under `deny_unknown_fields`. `Some(r)` = the allowlist gate is active with
+    /// retry budget `r`. This is the generator×gate factorial: e.g. `(condition=A4,
+    /// gate=Some(R3))` is "behavioral stack + post-parse allowlist + 3 retries"; the
+    /// legacy "live-D" arm is just `(condition=Control, gate=Some(r))`; `(condition=C,
+    /// gate=Some(r))` is the inert cell (grammar already constrains → 0 gate rejections).
     #[serde(default)]
-    pub retry_budget: RetryBudget,
+    pub gate: Option<RetryBudget>,
 }
 
 impl EvalRequest {
@@ -163,9 +172,9 @@ impl EvalRequest {
         if !(0.0..=2.0).contains(&self.temperature) {
             return Err(EvalError::new("temperature", "must be in 0.0..=2.0"));
         }
-        if self.retry_budget != RetryBudget::R0 && self.condition != Condition::D {
-            return Err(EvalError::new("retry_budget", "only meaningful for condition d"));
-        }
+        // The gate is orthogonal to the generator — valid on ANY condition (including the
+        // inert C/C+ cells), so there is no condition-coupling check. `Option<RetryBudget>`
+        // already makes "no gate" vs "gate with R0" distinct and every value well-formed.
         Ok(())
     }
 }
@@ -188,16 +197,16 @@ pub struct EvalResponse {
     pub model_id: String,
     pub engine_commit: String,
     pub raw_json: String,
-    /// LIVE-D DVs (zeroed/None for non-D conditions).
+    /// Gate DVs (zeroed/None when no gate is present).
     /// Number of generations whose tool call passed through the allowlist gate
-    /// (`1 + retries performed`). For non-D this is `1`.
+    /// (`1 + retries performed`). Without a gate this is `1`.
     #[serde(default = "default_attempts")]
     pub attempts: u32,
     /// Out-of-scope tool calls PRODUCED then caught by the live gate — the live
-    /// emission count (0 under C by construction; 0 for non-gated conditions).
+    /// emission count (0 under C by construction; 0 when no gate is present).
     #[serde(default)]
     pub gate_rejections: u32,
-    /// Terminal state of a D trial (`None` for every non-D condition).
+    /// Terminal state of a gated trial (`None` when no gate is present).
     #[serde(default)]
     pub d_terminal: Option<DTerminal>,
 }
@@ -225,7 +234,7 @@ mod tests {
     use super::*;
 
     fn req() -> EvalRequest {
-        EvalRequest { skill: "infra-monitor".into(), messages: vec!["run it".into()], condition: Condition::Control, temperature: 0.6, seed: None, retry_budget: RetryBudget::R0 }
+        EvalRequest { skill: "infra-monitor".into(), messages: vec!["run it".into()], condition: Condition::Control, temperature: 0.6, seed: None, gate: None }
     }
 
     #[test]
@@ -284,20 +293,20 @@ mod tests {
     }
 
     #[test]
-    fn retry_budget_defaults_to_r0_on_old_payload() {
+    fn gate_defaults_to_none_on_old_payload() {
         let json = r#"{"skill":"x","messages":["a"],"condition":"control"}"#;
-        assert_eq!(serde_json::from_str::<EvalRequest>(json).unwrap().retry_budget, RetryBudget::R0);
+        assert_eq!(serde_json::from_str::<EvalRequest>(json).unwrap().gate, None);
     }
 
     #[test]
-    fn retry_budget_on_non_d_rejected() {
-        let r = EvalRequest { retry_budget: RetryBudget::R1, ..req() };
-        assert!(r.validate().is_err());
+    fn gate_on_any_generator_allowed() {
+        let r = EvalRequest { condition: Condition::A4, gate: Some(RetryBudget::R3), ..req() };
+        assert!(r.validate().is_ok());
     }
 
     #[test]
-    fn retry_budget_on_d_allowed() {
-        let r = EvalRequest { condition: Condition::D, retry_budget: RetryBudget::R3, ..req() };
+    fn gate_on_grammar_condition_allowed() {
+        let r = EvalRequest { condition: Condition::C, gate: Some(RetryBudget::R1), ..req() };
         assert!(r.validate().is_ok());
     }
 

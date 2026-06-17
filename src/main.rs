@@ -116,6 +116,7 @@ struct ChatForm {
 fn condition_steps(
     state: &Arc<AppState>,
     condition: Condition,
+    gate_on: bool,
 ) -> (Vec<Box<dyn PreInferenceStep>>, Vec<Box<dyn PostInferenceStep>>) {
     let mut pre: Vec<Box<dyn PreInferenceStep>> = vec![];
     let mut post: Vec<Box<dyn PostInferenceStep>> = vec![];
@@ -129,10 +130,13 @@ fn condition_steps(
     if wants_output {
         post.push(Box::new(CredentialFilterStep::new()));
     }
-    // Live Condition D: post-parse allowlist gate (corrective enforcement). D keeps the
-    // Control prompt + native tools (a default-allow generator); the gate catches
-    // out-of-scope calls and the loop retries up to the request's retry budget.
-    if condition == Condition::D {
+    // Post-parse allowlist gate (corrective enforcement), layered ORTHOGONALLY over any
+    // generator via the request's `gate` modifier — not tied to a single condition. Pushed
+    // LAST so a behavioral output filter (A3/A4) gets first crack and the allowlist is the
+    // final authorization check; the loop then retries out-of-scope calls up to the budget.
+    // Over a grammar condition (C/C+) the gate is inert: the sampler already constrained the
+    // call to the allowlist language, so it never rejects.
+    if gate_on {
         post.push(Box::new(AllowlistGateStep));
     }
     (pre, post)
@@ -166,9 +170,11 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
     let mut all_trace: Vec<serde_json::Value> = vec![];
     let mut blocked = false;
     let mut blocked_by = String::new();
-    // Live-D DVs: total out-of-scope calls caught (live emission), retries performed,
-    // and whether the retry budget was exhausted (availability failure).
-    let gate_retry_budget = if condition == Condition::D { req.retry_budget.max_retries() } else { 0 };
+    // Gate DVs: total out-of-scope calls caught (live emission), retries performed, and
+    // whether the retry budget was exhausted (availability failure). The gate is the
+    // orthogonal `req.gate` modifier — `None` = no gate, `Some(r)` = gate with budget `r`.
+    let gate_on = req.gate.is_some();
+    let gate_retry_budget = req.gate.map(|r| r.max_retries()).unwrap_or(0);
     let mut gate_rejections = 0u32;
     let mut gate_retries = 0u32;
     let mut availability_failure = false;
@@ -191,7 +197,7 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
             req.seed,
         ));
         let tool_exec = ToolExecStepImpl::new(Executor::new(Arc::clone(&state.env)), Arc::clone(&state.env));
-        let (pre, post) = condition_steps(&state, condition);
+        let (pre, post) = condition_steps(&state, condition, gate_on);
         let agent_loop = build_loop(pre, inference, post, tool_exec, gate_retry_budget);
 
         let output = match agent_loop.run(input, &session).await {
@@ -265,8 +271,8 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
         raw_json: serde_json::to_string(&all_trace).unwrap_or_default(),
         attempts: 1 + gate_retries,
         gate_rejections,
-        // Two-sided reliability DV — only meaningful for the live-D arm.
-        d_terminal: (condition == Condition::D).then(|| {
+        // Two-sided reliability DV — meaningful whenever a gate is present (any generator).
+        d_terminal: gate_on.then(|| {
             if availability_failure { DTerminal::AvailabilityFailure } else { DTerminal::ValidAction }
         }),
     })
