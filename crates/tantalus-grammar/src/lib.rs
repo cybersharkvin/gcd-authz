@@ -335,6 +335,24 @@ fn str_slice(v: &[String]) -> Vec<&str> {
     v.iter().map(|s| s.as_str()).collect()
 }
 
+/// The `searchFiles.query` RHS for a guided grammar. `searchFiles` is OPEN-VOCAB (no allowlist), so
+/// positive security here is *selection, not composition* (ADR 0003 / the enumerable boundary): a
+/// `Some(value)` ENUMERATES the query to the trusted task's authorized search — exactly parallel to
+/// narrowing `fetchUrl`→a URL — making `searchFiles` a fully enumerable outcome (the query content,
+/// not just the tool, is forced). A `None` (the request authorizes "any search") falls back to a
+/// bounded free query. Returns `None` when `searchFiles` is not authorized for this request.
+fn guided_query_rhs(actions: &[(&str, Option<&str>)], style: FreeStringStyle) -> Option<String> {
+    let entries: Vec<Option<&str>> = actions.iter().filter(|(t, _)| *t == "searchFiles").map(|(_, p)| *p).collect();
+    if entries.is_empty() {
+        return None;
+    }
+    if entries.iter().any(|p| p.is_none()) {
+        return Some(free_string_rhs(style, MAX_QUERY_CHARS));
+    }
+    let qs: Vec<String> = entries.iter().filter_map(|p| *p).map(|s| s.to_string()).collect();
+    Some(gbnf_json_string_enum(&str_slice(&qs)))
+}
+
 /// Per-request LEAST-PRIVILEGE (C-guided) grammar (ADR 0003): `root` is an alternation of EXACTLY
 /// the trusted-channel authorized `actions` for this request, each narrowed to its authorized
 /// param value(s). No other tool and no out-of-scope value is producible. With NO authorized
@@ -343,8 +361,11 @@ fn str_slice(v: &[String]) -> Vec<&str> {
 /// so `respond-to-user` is in `root` ONLY when it is itself an authorized action (e.g. a greeting).
 ///
 /// `actions` are `(trace_tool, Option<value>)`: a `None` value on an ENUM tool authorizes that
-/// tool's FULL allowlist; a `Some(value)` authorizes just that value. Tool-call shapes come from
-/// the SAME consts the full grammar uses (no drift); enum values from `gbnf_json_string_enum`.
+/// tool's FULL allowlist; a `Some(value)` authorizes just that value. `searchFiles` is open-vocab
+/// (no allowlist) but is ALSO narrowed here — a `Some(query)` enumerates `searchFiles.query` to the
+/// trusted task's authorized search (selection-not-composition), so it too is a fully enumerable
+/// outcome under C-guided (see `guided_query_rhs`). Tool-call shapes come from the SAME consts the
+/// full grammar uses (no drift); enum values from `gbnf_json_string_enum`.
 ///
 /// # Contract
 /// - PRE (provenance): `actions` is derived from the TRUSTED task identity (`guided_policy` / the
@@ -367,7 +388,7 @@ pub fn build_guided_gbnf(actions: &[(&str, Option<&str>)], style: FreeStringStyl
     let emails = collect_guided_enum(actions, "readEmail", &email_ids());
     let paths = collect_guided_enum(actions, "readFile", &file_paths());
     let list_inbox = actions.iter().any(|(t, _)| *t == "listInbox");
-    let search = actions.iter().any(|(t, _)| *t == "searchFiles");
+    let query_rhs = guided_query_rhs(actions, style);
     let respond = actions.iter().any(|(t, _)| *t == "respondToUser");
 
     let mut roots: Vec<&str> = vec![];
@@ -392,10 +413,10 @@ pub fn build_guided_gbnf(actions: &[(&str, Option<&str>)], style: FreeStringStyl
         rules.push(READ_FILE_RULE.to_string());
         rules.push(format!("read-file-val ::= {}", gbnf_json_string_enum(&str_slice(v))));
     }
-    if search {
+    if let Some(q_rhs) = query_rhs {
         roots.push("search-files");
         rules.push(SEARCH_FILES_RULE.to_string());
-        rules.push(format!("query-string ::= {}", free_string_rhs(style, MAX_QUERY_CHARS)));
+        rules.push(format!("query-string ::= {}", q_rhs));
     }
     if list_inbox {
         roots.push("list-inbox");
@@ -655,6 +676,18 @@ mod tests {
     fn guided_shares_tool_rule_with_full() {
         let g = build_guided_gbnf(&[("listInbox", None)], FreeStringStyle::Unbounded);
         assert!(g.contains(LIST_INBOX_RULE));
+    }
+
+    #[test]
+    fn guided_enumerates_searchfiles_query_not_free() {
+        let g = build_guided_gbnf(&[("searchFiles", Some("deployment"))], FreeStringStyle::Unbounded);
+        assert!(g.contains("\\\"deployment\\\"") && !g.contains("json-char*"));
+    }
+
+    #[test]
+    fn guided_searchfiles_none_param_is_bounded_free_query() {
+        let g = build_guided_gbnf(&[("searchFiles", None)], FreeStringStyle::Unbounded);
+        assert!(g.contains("search-files") && g.contains("json-char*"));
     }
 
     #[test]
