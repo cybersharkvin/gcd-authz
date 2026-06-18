@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tantalus_env::Environment;
-use tantalus_grammar::{build_closed_response_gbnf, build_respond_only_closed_gbnf, build_respond_only_gbnf, build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
+use tantalus_grammar::{build_closed_response_gbnf, build_guided_gbnf, build_respond_only_closed_gbnf, build_respond_only_gbnf, build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
 use tantalus_llm::*;
 use tantalus_pipeline::prompt::Condition;
 use tantalus_pipeline::{InferenceResponse, PipelineError, PipelineInput};
@@ -27,11 +27,15 @@ impl LlamaCppInferenceStep {
     }
 
     pub fn with_condition(client: Arc<LlmClient>, env: Arc<Environment>, round: Round, condition: tantalus_pipeline::prompt::Condition) -> Self {
-        Self::full(client, env, round, condition, 0.7, None)
+        Self::full(client, env, round, condition, 0.7, None, &[])
     }
 
+    /// `guided_policy` is the trusted-channel authorized action set for Condition C-guided
+    /// (ADR 0003), `(trace_tool, Option<value>)`; ignored for every other condition. Empty for
+    /// the non-experimental `/chat` path (it never uses C-guided).
     pub fn full(client: Arc<LlmClient>, env: Arc<Environment>, round: Round,
-                condition: tantalus_pipeline::prompt::Condition, temperature: f32, seed: Option<u64>) -> Self {
+                condition: tantalus_pipeline::prompt::Condition, temperature: f32, seed: Option<u64>,
+                guided_policy: &[(&str, Option<&str>)]) -> Self {
         // Free-string repetition style is an ENGINE choice: xgrammar (vLLM/SGLang) chokes
         // on `{0,N}` (unrolls to N states, ~60s/compile at N=400 on vLLM 0.23.0), so use
         // the Kleene star there; llama.cpp GBNF keeps the bound (cheap + truncation-proof).
@@ -49,6 +53,9 @@ impl LlamaCppInferenceStep {
                     &safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), &refs, style,
                 ))
             }
+            // C-guided (ADR 0003): per-request least-privilege grammar narrowed to the trusted
+            // authorized action(s). Empty policy → respond-only (refusal) by construction.
+            Round::Two if condition == Condition::CGuided => Some(build_guided_gbnf(guided_policy, style)),
             Round::Two => Some(build_round2_gbnf(
                 &safe_fetch_urls(),
                 &player_channel_ids(),

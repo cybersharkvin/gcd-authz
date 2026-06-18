@@ -45,7 +45,7 @@ impl PromptAssembler {
             // Experiment Condition C: grammar is the SOLE independent variable, so C uses the
             // neutral Control prompt — NOT the round2 jailbreak template. (The grammar still
             // forces valid tool-call JSON regardless of prompt; Control already lists all tools.)
-            (Round::Two, Condition::C | Condition::CClosed) => &self.control_template,
+            (Round::Two, Condition::C | Condition::CClosed | Condition::CGuided) => &self.control_template,
             // The /chat interactive Round-2 game keeps its compliance-maximizing prompt.
             (Round::Two, _) => &self.round2_template,
             // Defensive-prompt conditions get the RFC 2119 security policy.

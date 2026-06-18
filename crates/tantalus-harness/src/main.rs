@@ -12,7 +12,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use tantalus_eval::{Condition, DTerminal, EvalRequest, EvalResponse, RetryBudget};
+use tantalus_eval::{Condition, DTerminal, EvalRequest, EvalResponse, GuidedAction, RetryBudget};
 use tantalus_harness::db::{self, TrialRecord};
 use tantalus_harness::{
     deflection, emission, legitimate_success, load_attack_corpus, load_legit_corpus, parse_trace,
@@ -54,6 +54,7 @@ fn parse_condition(s: &str) -> Option<(Condition, Option<RetryBudget>)> {
         "a4" => Condition::A4,
         "c" => Condition::C,
         "c_closed" | "cplus" => Condition::CClosed,
+        "c_guided" | "cguided" => Condition::CGuided,
         _ => return None,
     };
     Some((condition, gate))
@@ -73,6 +74,7 @@ fn cond_seed_base(s: &str) -> u64 {
         "d_r1" => 7,
         "d_r3" => 8,
         "c_closed" | "cplus" => 9,
+        "c_guided" | "cguided" => 10,
         // Layered factorial cells (e.g. a4_d_r3) get a stable, distinct base via FNV-1a,
         // offset to 100..999 so they never collide with the hand-assigned 0..9 above.
         _ => {
@@ -277,6 +279,12 @@ async fn run_condition(
 }
 
 async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRecord, String> {
+    // C-guided (ADR 0003): send the TRUSTED authorized policy — the requested-set for attacks, the
+    // expected call for legit tasks — both derived from the task IDENTITY, never from skill content.
+    let guided_policy: Option<Vec<GuidedAction>> = (spec.condition == Condition::CGuided).then(|| match spec.kind {
+        CorpusKind::Attack => spec.requested.iter().map(|r| GuidedAction { tool: r.tool.clone(), param: r.param.clone() }).collect(),
+        CorpusKind::Legitimate => spec.expected.iter().map(|(t, p)| GuidedAction { tool: t.clone(), param: p.clone() }).collect(),
+    });
     let req = EvalRequest {
         skill: spec.skill_id.clone(),
         messages: spec.turns.clone(),
@@ -284,6 +292,7 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
         temperature: spec.temperature,
         seed: Some(spec.seed),
         gate: spec.gate,
+        guided_policy,
     };
     let url = format!("{}/eval", spec.victim.trim_end_matches('/'));
     let resp = client.post(&url).json(&req).send().await.map_err(|e| format!("{} post: {e}", spec.skill_label))?;

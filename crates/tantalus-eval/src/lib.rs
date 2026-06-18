@@ -35,6 +35,13 @@ pub enum Condition {
     /// message content AND length are bounded by construction → 0 content-emission for the
     /// enumerable-response agent class. Same tool enums as C; only the message rule differs.
     CClosed,
+    /// C-guided (ADR 0003): per-request LEAST-PRIVILEGE GCD. The grammar narrows to EXACTLY the
+    /// request's trusted-channel authorized action(s) (`EvalRequest::guided_policy`), so the only
+    /// in-scope action producible is the requested good outcome (deflection → 0; legit-success ≈
+    /// 100% — both by construction). With no authorized action it is a respond-only refusal. The
+    /// per-request policy is derived from the task identity, INVARIANT to untrusted skill content;
+    /// blind `C` stays the headline security condition (this cell proves constitutive UTILITY).
+    CGuided,
     /// D (legacy generator label): a default-allow Control generator. The post-parse
     /// allowlist is now the orthogonal `EvalRequest::gate` modifier, NOT a generator —
     /// the live-D arm is `(condition=Control, gate=Some(r))`. Kept so old payloads/labels
@@ -44,9 +51,9 @@ pub enum Condition {
 
 impl Condition {
     /// Whether the grammar-constrained decoding path is active for this condition.
-    /// Both C and C+ (closed-response) decode under a GBNF grammar.
+    /// C, C+ (closed-response), and C-guided (least-privilege) all decode under a GBNF grammar.
     pub fn uses_grammar(self) -> bool {
-        matches!(self, Condition::C | Condition::CClosed)
+        matches!(self, Condition::C | Condition::CClosed | Condition::CGuided)
     }
 }
 
@@ -129,6 +136,19 @@ fn default_temperature() -> f32 {
     0.6
 }
 
+/// One authorized action in a C-guided (ADR 0003) per-request policy: the camelCase TRACE tool
+/// name and (optionally) the specific authorized param value (`None` on an enum tool = "any value
+/// in that tool's allowlist"). Mirrors the harness `RequestedAction` shape; the harness fills the
+/// policy from the TRUSTED task identity (`requested_defaults` for attacks / the legit task's
+/// expected call), never from untrusted skill content.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GuidedAction {
+    pub tool: String,
+    #[serde(default)]
+    pub param: Option<String>,
+}
+
 /// `/eval` request. `condition` is the sole control selector — there is no
 /// `defenses` field (removed; condition drives prompt + pre/post steps + grammar).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +170,12 @@ pub struct EvalRequest {
     /// gate=Some(r))` is the inert cell (grammar already constrains → 0 gate rejections).
     #[serde(default)]
     pub gate: Option<RetryBudget>,
+    /// C-guided (ADR 0003) per-request least-privilege policy: the trusted-channel authorized
+    /// action(s) the grammar narrows to for THIS request. `None` (default) for every non-guided
+    /// condition — keeps old payloads valid under `deny_unknown_fields`. `Some([])` = no
+    /// authorized action ⇒ refuse (respond-only). Used ONLY when `condition == CGuided`.
+    #[serde(default)]
+    pub guided_policy: Option<Vec<GuidedAction>>,
 }
 
 impl EvalRequest {
@@ -234,7 +260,7 @@ mod tests {
     use super::*;
 
     fn req() -> EvalRequest {
-        EvalRequest { skill: "infra-monitor".into(), messages: vec!["run it".into()], condition: Condition::Control, temperature: 0.6, seed: None, gate: None }
+        EvalRequest { skill: "infra-monitor".into(), messages: vec!["run it".into()], condition: Condition::Control, temperature: 0.6, seed: None, gate: None, guided_policy: None }
     }
 
     #[test]
@@ -284,6 +310,18 @@ mod tests {
     #[test]
     fn cclosed_deserializes_snake_case() {
         assert_eq!(serde_json::from_str::<Condition>("\"c_closed\"").unwrap(), Condition::CClosed);
+    }
+
+    #[test]
+    fn cguided_deserializes_and_uses_grammar() {
+        assert_eq!(serde_json::from_str::<Condition>("\"c_guided\"").unwrap(), Condition::CGuided);
+        assert!(Condition::CGuided.uses_grammar());
+    }
+
+    #[test]
+    fn guided_policy_defaults_to_none_and_round_trips() {
+        let r = EvalRequest { condition: Condition::CGuided, guided_policy: Some(vec![GuidedAction { tool: "fetchUrl".into(), param: Some("u".into()) }]), ..req() };
+        assert_eq!(serde_json::from_str::<EvalRequest>(&serde_json::to_string(&r).unwrap()).unwrap().guided_policy, r.guided_policy);
     }
 
     #[test]

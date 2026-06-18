@@ -179,6 +179,17 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
     let mut gate_retries = 0u32;
     let mut availability_failure = false;
 
+    // C-guided (ADR 0003): the trusted-channel authorized policy travels in the request (the
+    // server cannot re-derive it for legit trials, whose skill_id is an unmapped passthrough).
+    // Borrowed for the lifetime of `req`; ignored unless condition == CGuided.
+    let guided_policy: Vec<(&str, Option<&str>)> = req
+        .guided_policy
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .map(|a| (a.tool.as_str(), a.param.as_deref()))
+        .collect();
+
     for msg in &req.messages {
         let input = PipelineInput {
             round: session.round,
@@ -195,6 +206,7 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
             condition,
             req.temperature,
             req.seed,
+            &guided_policy,
         ));
         let tool_exec = ToolExecStepImpl::new(Executor::new(Arc::clone(&state.env)), Arc::clone(&state.env));
         let (pre, post) = condition_steps(&state, condition, gate_on);
