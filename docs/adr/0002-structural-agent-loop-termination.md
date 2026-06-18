@@ -1,6 +1,6 @@
 # ADR 0002 — Agent-loop termination is enforced structurally (forced `respondToUser`), not by prompt engineering
 
-- **Status:** Accepted (decision). The `build_respond_only_gbnf` + loop-forcing **implementation is a tracked follow-up — not yet built.** The supporting prompt bake-off is done; the baseline system prompt is **retained unchanged** as a result of this ADR.
+- **Status:** Accepted + **IMPLEMENTED & validated** (commit `411fa1e`). `build_respond_only_gbnf` + the loop-forcing hooks are built and unit-tested; the baseline system prompt is **retained unchanged**. A smoke (Qwen3-1.7B-NVFP4/vLLM, baseline prompt, `MAX_TURNS=6`) confirms spin-out **c 22.7 %→0.2 %, c_closed 22.1 %→0.0 %** with bypass/emission unchanged and D's `availability_failure` preserved — see "Validation" below.
 - **Date:** 2026-06-17
 - **Deciders:** Vince (researcher), Claude (Opus 4.8)
 - **Relates to:** ADR 0001 (engine). Does **not** change the experiment design, win semantics, corpus, or the security/emission DVs. Concerns the **reliability/availability** axis only.
@@ -54,3 +54,33 @@ This is ADR 0001's thesis applied to the loop itself: **constitutive (ungenerabl
 | G/H/I (round 3) | — | 5–69 | 27–60 | 16–35 |
 
 Reproducible: baseline and F re-measured across two independent runs within ±2 pp. The legit-success guard (208 tasks/condition) is what disqualified the do-nothing candidate (H: 5 % loop / 27 % legit). Bake-off DBs were ephemeral (`/tmp/promptbake/`); the durable artifacts are the `CONTROL_TEMPLATE` mechanism (`5e5c17a`) and this ADR.
+
+## Validation (commit `411fa1e`, smoke 2026-06-18 — Qwen3-1.7B-NVFP4/vLLM, baseline prompt, `MAX_TURNS=6`, 500 attack + 208 legit/condition)
+
+Implemented as three layers (all DbC, no-drift): `tantalus_grammar::build_respond_only_gbnf` /
+`build_respond_only_closed_gbnf` (root = `respondToUser` only, sharing `RESPOND_TO_USER_RULE` with
+the full grammar); `InferenceStep::next_turn_force_respond` (default = `next_turn`) + `forces_respond`
+(default `false`), with `LlamaCppInferenceStep` overriding via a `respond_only_gbnf` built in `full()`;
+and `AgentLoop` forcing the closing reply on dedup-repeat and at the turn cap, **gated on
+`forces_respond()`** so non-grammar arms are byte-identical.
+
+Spin-out = a trial whose trace contains no `respondToUser` (measured vs the canonical 100k DB at the
+same cap/prompt):
+
+| metric | before (canonical 100k) | after (this smoke) |
+|---|---|---|
+| spin-out `c` (free message) | 22.7 % | **0.2 %** (1/500 attack) |
+| spin-out `c_closed` (canned) | 22.1 % | **0.0 %** |
+| `c` / `c_closed` bypass · emission | 0 · 0 | **0 · 0** (unchanged) |
+| Control bypass (attack-only) | 20.28 % | **20.6 %** (no drift → no re-baseline) |
+| D `availability_failure` | gate-sourced | **d_r0 = 109, all `blocked_by='allowlist-gate'`** (preserved) |
+| legit-success `c` | ~36 % (bake-off baseline) | **40.4 %** (slightly up, not tanked) |
+
+- **Caveat held by construction:** D uses the Control generator (no grammar) → `forces_respond()` is
+  `false` → the forced terminal never fires for D, so its `availability_failure` is untouched and
+  entirely the gate's. Confirmed: every d_r0 stranding is `blocked_by='allowlist-gate'`.
+- **The 0.2 % `c` residual is the free-string truncation caveat** (cont.6), not a new failure: the
+  forced *free* reply rambled to `max_tokens` and truncated (`{"text":""}`). **`c_closed` = 0 % by
+  construction** (canned messages can't truncate) — so C+ closes spin-out *and* truncation together.
+- The `max_turns_enforced` unit test remains the one documented pre-existing failure (its stub has
+  `forces_respond()==false`, so the new hooks are a no-op for it); +4 new unit tests pass.
