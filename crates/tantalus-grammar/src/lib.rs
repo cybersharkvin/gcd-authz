@@ -166,6 +166,47 @@ pub fn build_round2_schema(player_channels: &[PlayerChannelId]) -> Value {
     })
 }
 
+/// The `respondToUser` GBNF production — shared by the full R2 grammar (`render_round2_gbnf`)
+/// and the respond-only termination grammar (`render_respond_only_gbnf`) so the tool-call shape
+/// and escaping cannot drift between them. References the `message-string` rule, whose RHS the
+/// caller supplies (free string for C, canned alternation for C+). Single braces (this is a
+/// const, not a `format!` template, so it is inserted verbatim).
+const RESPOND_TO_USER_RULE: &str =
+    r#"respond-to-user ::= "{" ws "\"tool\":" ws "\"respondToUser\"," ws "\"params\":" ws "{" ws "\"message\":" ws message-string ws "}" ws "}""#;
+
+/// The JSON-string character class — shared scaffold rule (no braces; format-safe).
+const JSON_CHAR_RULE: &str =
+    r#"json-char ::= [^"\\] | "\\" ["\\/bfnrt] | "\\u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]"#;
+
+/// Optional-whitespace rule — shared scaffold rule (no braces; format-safe).
+const WS_RULE: &str = r#"ws ::= [ \t\n\r]*"#;
+
+/// RHS for a FREE JSON string of at most `max_chars` characters: a quote, the engine-conditional
+/// `json-char` run (`{0,N}` for llama.cpp / `*` for xgrammar), a quote. Shared by every free-string
+/// field (`respondToUser.message`, `searchFiles.query`) so the bound/style cannot drift.
+fn free_string_rhs(style: FreeStringStyle, max_chars: u32) -> String {
+    let rep = match style {
+        FreeStringStyle::Bounded => format!("json-char{{0,{}}}", max_chars),
+        FreeStringStyle::Unbounded => "json-char*".to_string(),
+    };
+    format!("\"\\\"\" {} \"\\\"\"", rep)
+}
+
+/// RHS for a CLOSED message: a finite alternation of the pre-authorized `responses`, each a
+/// complete JSON string literal (serde gives the exact JSON encoding; then escape for GBNF).
+/// Shared by `build_closed_response_gbnf` (C+) and `build_respond_only_closed_gbnf` (C+ termination).
+fn closed_message_rhs(responses: &[&str]) -> String {
+    responses
+        .iter()
+        .map(|r| {
+            let json = serde_json::to_string(r).unwrap_or_else(|_| "\"\"".to_string());
+            let esc = json.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"{}\"", esc)
+        })
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
 /// Generate a GBNF grammar for Round 2 that constrains tool calls at the token level.
 /// This is the structural control — the model CANNOT produce tokens outside this grammar.
 pub fn build_round2_gbnf(
@@ -177,16 +218,8 @@ pub fn build_round2_gbnf(
 ) -> String {
     // Free-string repetition — engine-dependent (see FreeStringStyle). Bounded `{0,N}` is
     // cheap on llama.cpp but a compile bomb on xgrammar; Unbounded `*` is a single loop state.
-    let (msg_rep, query_rep) = match style {
-        FreeStringStyle::Bounded => (
-            format!("json-char{{0,{}}}", MAX_MESSAGE_CHARS),
-            format!("json-char{{0,{}}}", MAX_QUERY_CHARS),
-        ),
-        FreeStringStyle::Unbounded => ("json-char*".to_string(), "json-char*".to_string()),
-    };
-    // RHS for a free JSON string: a quote, the json-char run, a quote.
-    let message_rhs = format!("\"\\\"\" {} \"\\\"\"", msg_rep);
-    let query_rhs = format!("\"\\\"\" {} \"\\\"\"", query_rep);
+    let message_rhs = free_string_rhs(style, MAX_MESSAGE_CHARS);
+    let query_rhs = free_string_rhs(style, MAX_QUERY_CHARS);
     render_round2_gbnf(safe_urls, player_channels, email_ids, file_paths, &message_rhs, &query_rhs)
 }
 
@@ -204,24 +237,39 @@ pub fn build_closed_response_gbnf(
     query_style: FreeStringStyle,
 ) -> String {
     assert!(!responses.is_empty(), "closed-response grammar needs at least one canned response");
-    // Each canned response becomes a complete JSON string literal. serde_json gives the exact
-    // JSON encoding (quotes/newlines/unicode handled); then escape it for GBNF.
-    // message-string ::= "\"r1\"" | "\"r2\"" | ...
-    let message_rhs = responses
-        .iter()
-        .map(|r| {
-            let json = serde_json::to_string(r).unwrap_or_else(|_| "\"\"".to_string());
-            let esc = json.replace('\\', "\\\\").replace('"', "\\\"");
-            format!("\"{}\"", esc)
-        })
-        .collect::<Vec<_>>()
-        .join(" | ");
-    let query_rep = match query_style {
-        FreeStringStyle::Bounded => format!("json-char{{0,{}}}", MAX_QUERY_CHARS),
-        FreeStringStyle::Unbounded => "json-char*".to_string(),
-    };
-    let query_rhs = format!("\"\\\"\" {} \"\\\"\"", query_rep);
+    // message-string ::= "\"r1\"" | "\"r2\"" | ... (finite alternation; query stays engine-conditional free).
+    let message_rhs = closed_message_rhs(responses);
+    let query_rhs = free_string_rhs(query_style, MAX_QUERY_CHARS);
     render_round2_gbnf(safe_urls, player_channels, email_ids, file_paths, &message_rhs, &query_rhs)
+}
+
+/// Round-2 termination grammar whose ONLY production is `respondToUser` — used by the agent loop
+/// to force a single closing reply when a weak model would otherwise spin out under the full
+/// grammar (no plain-text stop exists; `respondToUser` is the sole turn-ender). `style` styles the
+/// free `respondToUser.message` (Condition C). Shares `RESPOND_TO_USER_RULE` with the full grammar.
+pub fn build_respond_only_gbnf(style: FreeStringStyle) -> String {
+    render_respond_only_gbnf(&free_string_rhs(style, MAX_MESSAGE_CHARS))
+}
+
+/// Closed-response variant of `build_respond_only_gbnf` (Condition C+): the forced reply is a
+/// finite alternation of the pre-authorized `responses`, so the forced terminal turn cannot emit
+/// unenumerated content either.
+pub fn build_respond_only_closed_gbnf(responses: &[&str]) -> String {
+    assert!(!responses.is_empty(), "respond-only closed grammar needs at least one canned response");
+    render_respond_only_gbnf(&closed_message_rhs(responses))
+}
+
+/// Assemble a respond-only grammar: `root` is the `respondToUser` branch alone, plus the shared
+/// message/scaffold rules. No fetch/read/search/list rules and no `query-string` — the model
+/// physically cannot emit anything but a reply.
+fn render_respond_only_gbnf(message_rhs: &str) -> String {
+    format!(
+        "root ::= respond-to-user\n\n{respond_rule}\n\nmessage-string ::= {message_rhs}\n{json_char}\n{ws_rule}\n",
+        respond_rule = RESPOND_TO_USER_RULE,
+        message_rhs = message_rhs,
+        json_char = JSON_CHAR_RULE,
+        ws_rule = WS_RULE,
+    )
 }
 
 /// Alternation of JSON-string enum values, each wrapped in literal quotes (URL/channel/etc enums).
@@ -271,19 +319,22 @@ search-files ::= "{{" ws "\"tool\":" ws "\"searchFiles\"," ws "\"params\":" ws "
 
 list-inbox ::= "{{" ws "\"tool\":" ws "\"listInbox\"," ws "\"params\":" ws "{{" ws "}}" ws "}}"
 
-respond-to-user ::= "{{" ws "\"tool\":" ws "\"respondToUser\"," ws "\"params\":" ws "{{" ws "\"message\":" ws message-string ws "}}" ws "}}"
+{respond_rule}
 
 message-string ::= {message_rhs}
 query-string ::= {query_rhs}
-json-char ::= [^"\\] | "\\" ["\\/bfnrt] | "\\u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]
-ws ::= [ \t\n\r]*
+{json_char}
+{ws_rule}
 "#,
         url_alts = url_alts,
         channel_alts = channel_alts,
         email_alts = email_alts,
         path_alts = path_alts,
+        respond_rule = RESPOND_TO_USER_RULE,
         message_rhs = message_rhs,
         query_rhs = query_rhs,
+        json_char = JSON_CHAR_RULE,
+        ws_rule = WS_RULE,
     )
 }
 
@@ -405,5 +456,24 @@ mod tests {
     #[test]
     fn bounded_message_fits_token_budget() {
         assert!(MAX_MESSAGE_CHARS + 64 < 1024);
+    }
+
+    #[test]
+    fn respond_only_is_respond_to_user_only() {
+        let g = build_respond_only_gbnf(FreeStringStyle::Unbounded);
+        assert!(g.contains("respondToUser") && !g.contains("fetchURL") && !g.contains("readFile") && !g.contains("readChatHistory"));
+    }
+
+    #[test]
+    fn respond_only_shares_respond_rule_with_full() {
+        let only = build_respond_only_gbnf(FreeStringStyle::Unbounded);
+        let full = build_round2_gbnf(&safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), FreeStringStyle::Unbounded);
+        assert!(only.contains(RESPOND_TO_USER_RULE) && full.contains(RESPOND_TO_USER_RULE));
+    }
+
+    #[test]
+    fn respond_only_closed_enumerates_responses() {
+        let g = build_respond_only_closed_gbnf(&["hi there"]);
+        assert!(g.contains("hi there") && g.contains("respondToUser") && !g.contains("json-char*"));
     }
 }

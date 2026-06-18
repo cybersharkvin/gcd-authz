@@ -139,6 +139,19 @@ pub trait InferenceStep: Send + Sync {
     fn name(&self) -> &str;
     async fn first_turn(&self, input: &PipelineInput) -> Result<InferenceResponse, PipelineError>;
     async fn next_turn(&self, result: &ToolResult) -> Result<InferenceResponse, PipelineError>;
+    /// Regenerate after a tool result, structurally constrained to emit ONLY `respondToUser`.
+    /// Default = `next_turn` (no forcing), so non-grammar impls and test stubs are unaffected; the
+    /// grammar-backed impl overrides it to decode under a respond-only grammar, guaranteeing the
+    /// agent loop a closing reply (eliminates spin-out by construction). See ADR 0002.
+    async fn next_turn_force_respond(&self, result: &ToolResult) -> Result<InferenceResponse, PipelineError> {
+        self.next_turn(result).await
+    }
+    /// Whether `next_turn_force_respond` actually forces a `respondToUser` (true only when a grammar
+    /// is active). The loop gates its one-shot forced terminal on this so non-grammar arms get ZERO
+    /// extra inference — no trajectory change, no bypass-potency shift, no re-baseline.
+    fn forces_respond(&self) -> bool {
+        false
+    }
 }
 
 #[async_trait::async_trait]
@@ -194,6 +207,9 @@ impl AgentLoop {
         let mut gate_attempts = 1u32;
         let mut gate_rejections = 0u32;
         let mut availability_failure = false;
+        // ADR 0002: set once a closing respondToUser has been structurally forced, so a pathological
+        // non-grammar forced result cannot re-trigger forcing (the respond-only grammar guarantees it).
+        let mut forced_terminal = false;
 
         loop {
             let mut output = if let Some(ref tc) = resp.tool_call {
@@ -349,6 +365,18 @@ impl AgentLoop {
                 let call_sig = format!("{:?}", tc.params);
                 if last_tool_call.as_deref() == Some(call_sig.as_str()) {
                     trace.push(serde_json::json!({"turn": turns, "dedup_skipped": &call_sig}));
+                    // ADR 0002: a repeat means the weak model is stuck. For grammar arms force the
+                    // closing reply NOW (even at the cap; one-shot via forced_terminal) so the trial
+                    // never spins out — the respond-only grammar guarantees a respondToUser the loop
+                    // top returns next iteration. Non-grammar arms fall through to the original
+                    // behavioral nudge + cap fallback below (no extra inference, no potency shift).
+                    if self.inference.forces_respond() && !forced_terminal {
+                        forced_terminal = true;
+                        let retry_result = ToolResult { tool: tc.tool_name(), success: false, data: "Error: you already called this tool with the same parameters. You have the data. Call respondToUser now with your answer.".into(), error: None, tool_use_id: tc.tool_use_id.clone() };
+                        resp = self.inference.next_turn_force_respond(&retry_result).await?;
+                        total.accumulate(&resp);
+                        continue;
+                    }
                     turns += 1;
                     if turns > self.max_turns {
                         let mut out = PipelineOutput::text_response("I wasn't able to complete that request. Please try again.".into());
@@ -388,6 +416,22 @@ impl AgentLoop {
                 }
             }
             all_skills.extend(output.skills_enabled.drain(..));
+
+            // ADR 0002 — structural terminal: at the turn cap with a pending tool result and no
+            // respondToUser yet, force ONE closing reply instead of returning the canned give-up.
+            // Gated on `forces_respond()` so non-grammar arms are byte-identical to before (no extra
+            // inference, no potency shift). The respond-only grammar guarantees the forced result is
+            // a respondToUser, which the loop top then returns; `forced_terminal` bounds it to once.
+            if output.tool_call.is_some() && turns >= self.max_turns
+                && self.inference.forces_respond() && !forced_terminal
+            {
+                if let Some(ref tr) = output.tool_result {
+                    forced_terminal = true;
+                    resp = self.inference.next_turn_force_respond(tr).await?;
+                    total.accumulate(&resp);
+                    continue;
+                }
+            }
 
             // If text response or max turns, return
             if output.tool_call.is_none() || turns >= self.max_turns {
@@ -526,5 +570,28 @@ mod tests {
     async fn d_budget_zero_is_availability_failure() {
         let out = gate_loop(0).run(input(), &session()).await.unwrap();
         assert_eq!((out.gate_rejections, out.availability_failure), (1, true));
+    }
+
+    // ADR 0002: a forcing impl that loops on next_turn but yields a respondToUser when forced.
+    struct ForceRespondInference;
+    #[async_trait::async_trait]
+    impl InferenceStep for ForceRespondInference {
+        fn name(&self) -> &str { "force" }
+        async fn first_turn(&self, _: &PipelineInput) -> Result<InferenceResponse, PipelineError> {
+            Ok(InferenceResponse { raw_json: "{}".into(), tool_call: Some(ToolCall { params: ToolParams::ListInbox, tool_use_id: "t1".into() }), text: None, cost: InferenceCost::default(), timings: InferenceTimings::default() })
+        }
+        async fn next_turn(&self, _: &ToolResult) -> Result<InferenceResponse, PipelineError> {
+            Ok(InferenceResponse { raw_json: "{}".into(), tool_call: Some(ToolCall { params: ToolParams::ListInbox, tool_use_id: "t2".into() }), text: None, cost: InferenceCost::default(), timings: InferenceTimings::default() })
+        }
+        async fn next_turn_force_respond(&self, _: &ToolResult) -> Result<InferenceResponse, PipelineError> {
+            Ok(InferenceResponse { raw_json: "{}".into(), tool_call: Some(ToolCall { params: ToolParams::RespondToUser { message: "forced".into() }, tool_use_id: "t3".into() }), text: None, cost: InferenceCost::default(), timings: InferenceTimings::default() })
+        }
+        fn forces_respond(&self) -> bool { true }
+    }
+
+    #[tokio::test]
+    async fn forced_terminal_yields_reply_not_giveup() {
+        let l = AgentLoop { pre_steps: vec![], inference: Box::new(ForceRespondInference), post_steps: vec![], tool_exec: Box::new(StubToolExec), observers: vec![], max_turns: 5, gate_retry_budget: 0 };
+        assert_eq!(l.run(input(), &session()).await.unwrap().text, "forced");
     }
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tantalus_env::Environment;
-use tantalus_grammar::{build_closed_response_gbnf, build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
+use tantalus_grammar::{build_closed_response_gbnf, build_respond_only_closed_gbnf, build_respond_only_gbnf, build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
 use tantalus_llm::*;
 use tantalus_pipeline::prompt::Condition;
 use tantalus_pipeline::{InferenceResponse, PipelineError, PipelineInput};
@@ -16,6 +16,9 @@ pub struct LlamaCppInferenceStep {
     seed: Option<u64>,
     history: Mutex<Vec<ChatMessage>>,
     gbnf: Option<String>,
+    /// ADR 0002: the respondToUser-only termination grammar. `Some` iff a grammar is active
+    /// (C / C+); `None` for the native-tool arms. Drives `forces_respond` / `next_turn_force_respond`.
+    respond_only_gbnf: Option<String>,
 }
 
 impl LlamaCppInferenceStep {
@@ -55,7 +58,18 @@ impl LlamaCppInferenceStep {
             )),
             Round::One => None,
         };
-        Self { client, env, round, condition, temperature, seed, history: Mutex::new(Vec::new()), gbnf }
+        // ADR 0002: termination grammar (respondToUser only), built with the SAME message style /
+        // canned corpus as `gbnf`. Some iff a grammar is active (C / C+); None for native-tool arms.
+        let respond_only_gbnf = match round {
+            Round::Two if condition == Condition::CClosed => {
+                let responses = closed_responses();
+                let refs: Vec<&str> = responses.iter().map(|s| s.as_str()).collect();
+                Some(build_respond_only_closed_gbnf(&refs))
+            }
+            Round::Two => Some(build_respond_only_gbnf(style)),
+            Round::One => None,
+        };
+        Self { client, env, round, condition, temperature, seed, history: Mutex::new(Vec::new()), gbnf, respond_only_gbnf }
     }
 }
 
@@ -263,6 +277,30 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
     }
 
     async fn next_turn(&self, result: &ToolResult) -> Result<InferenceResponse, PipelineError> {
+        self.next_turn_with_grammar(result, self.gbnf.as_deref()).await
+    }
+
+    /// ADR 0002: regenerate constrained to the respond-only grammar (C / C+) so the model can only
+    /// emit a closing respondToUser. For the native-tool arms there is no respond-only grammar, so
+    /// this is exactly `next_turn` (no behavioral change).
+    async fn next_turn_force_respond(&self, result: &ToolResult) -> Result<InferenceResponse, PipelineError> {
+        match self.respond_only_gbnf.as_deref() {
+            Some(g) => self.next_turn_with_grammar(result, Some(g)).await,
+            None => self.next_turn(result).await,
+        }
+    }
+
+    fn forces_respond(&self) -> bool {
+        self.respond_only_gbnf.is_some()
+    }
+}
+
+impl LlamaCppInferenceStep {
+    /// Shared body for `next_turn` / `next_turn_force_respond`: append the tool result, regenerate
+    /// under the supplied `grammar` (`None` = native tools), and parse the assistant turn. The
+    /// "parse Text as a JSON tool call" branch keys on `grammar.is_some()` (the passed grammar, not
+    /// `self.gbnf`) so the forced respond-only grammar is parsed correctly even though it differs.
+    async fn next_turn_with_grammar(&self, result: &ToolResult, grammar: Option<&str>) -> Result<InferenceResponse, PipelineError> {
         let mut history = self.history.lock().await;
 
         // Append tool result
@@ -273,7 +311,6 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
         });
 
         let tools = if self.round == Round::One { Some(build_tool_defs()) } else { None };
-        let grammar = self.gbnf.as_deref();
 
         let (resp, usage) = self.client.chat_with_params(
             &history,
@@ -308,7 +345,7 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
                 Ok(InferenceResponse { raw_json: raw, tool_call: tc, text: None, cost, timings })
             }
             LlmResponse::Text(text) => {
-                if self.gbnf.is_some() {
+                if grammar.is_some() {
                     let tc = parse_tool_call_from_json(&text);
                     let raw = text.clone();
                     let assistant = match &tc {
