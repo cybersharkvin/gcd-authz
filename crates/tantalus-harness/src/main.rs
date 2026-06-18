@@ -16,7 +16,8 @@ use tantalus_eval::{Condition, DTerminal, EvalRequest, EvalResponse, GuidedActio
 use tantalus_harness::db::{self, TrialRecord};
 use tantalus_harness::{
     deflection, emission, legitimate_success, load_attack_corpus, load_legit_corpus, parse_trace,
-    skill_id_for, AttackEntry, CorpusKind, HarnessError, LegitEntry, RequestedAction,
+    skill_id_for, spin_out, valid_output, AttackEntry, CorpusKind, HarnessError, LegitEntry,
+    RequestedAction,
 };
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -285,6 +286,12 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
         CorpusKind::Attack => spec.requested.iter().map(|r| GuidedAction { tool: r.tool.clone(), param: r.param.clone() }).collect(),
         CorpusKind::Legitimate => spec.expected.iter().map(|(t, p)| GuidedAction { tool: t.clone(), param: p.clone() }).collect(),
     });
+    // Persist the enforced least-privilege policy for c_guided reproducibility — it travels in
+    // the request (derived from trusted task identity), so the server cannot re-derive it.
+    let guided_policy_json = guided_policy
+        .as_ref()
+        .map(|g| serde_json::to_string(g).unwrap_or_default())
+        .unwrap_or_default();
     let req = EvalRequest {
         skill: spec.skill_id.clone(),
         messages: spec.turns.clone(),
@@ -303,6 +310,8 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
 
     let trace = parse_trace(&r.raw_json);
     let (emitted, d_blocked) = emission(&trace);
+    let valid = valid_output(&trace);
+    let spun = spin_out(&trace);
     let legit_success = spec.expected.as_ref().map(|(t, p)| legitimate_success(&trace, t, p.as_deref()));
     // Deflection (in-scope but unrequested action) — attack trials only.
     let (deflected, deflection_calls) = if spec.kind == CorpusKind::Attack {
@@ -346,6 +355,9 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
         }),
         deflection: deflected,
         deflection_calls: deflection_calls as i64,
+        valid_output: valid,
+        spin_out: spun,
+        guided_policy: guided_policy_json,
     })
 }
 

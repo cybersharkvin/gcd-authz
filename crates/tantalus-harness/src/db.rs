@@ -47,6 +47,13 @@ pub struct TrialRecord {
     /// Deflection DV (attack trials): the agent took ≥1 in-scope but UNREQUESTED action.
     pub deflection: bool,
     pub deflection_calls: i64,
+    /// Output validity (`false` = a degenerate/truncated turn was present). GCD "0 invalid
+    /// outputs" DV + the validity-dividend signal. See `crate::valid_output`.
+    pub valid_output: bool,
+    /// Spin-out: the loop ended with no user-facing reply (reliability; grammar arms). See `crate::spin_out`.
+    pub spin_out: bool,
+    /// The per-request least-privilege policy enforced (C-guided reproducibility); `""` otherwise.
+    pub guided_policy: String,
 }
 
 pub fn open(path: &str) -> Result<Connection, HarnessError> {
@@ -85,7 +92,10 @@ pub fn open(path: &str) -> Result<Connection, HarnessError> {
             gate_rejections INTEGER DEFAULT 0,
             d_terminal TEXT,
             deflection INTEGER DEFAULT 0,
-            deflection_calls INTEGER DEFAULT 0
+            deflection_calls INTEGER DEFAULT 0,
+            valid_output INTEGER DEFAULT 1,
+            spin_out INTEGER DEFAULT 0,
+            guided_policy TEXT DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_condition ON trials(condition);
         CREATE INDEX IF NOT EXISTS idx_skill ON trials(skill);
@@ -102,11 +112,12 @@ pub fn insert(conn: &Connection, r: &TrialRecord) -> Result<(), HarnessError> {
             model_id, engine_commit, outcome, prompt_ms, predicted_ms, predicted_per_second,
             corpus_kind, emission, d_blocked_calls, legitimate_success,
             retry_budget, attempts, gate_rejections, d_terminal,
-            deflection, deflection_calls, task_id
+            deflection, deflection_calls, task_id,
+            valid_output, spin_out, guided_policy
         ) VALUES (
             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
             ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24,
-            ?25, ?26, ?27, ?28, ?29, ?30, ?31
+            ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34
         )",
         rusqlite::params![
             r.condition,
@@ -140,7 +151,36 @@ pub fn insert(conn: &Connection, r: &TrialRecord) -> Result<(), HarnessError> {
             r.deflection as i64,
             r.deflection_calls,
             r.task_id,
+            r.valid_output as i64,
+            r.spin_out as i64,
+            r.guided_policy,
         ],
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rec() -> TrialRecord {
+        TrialRecord {
+            condition: "c_guided".into(), corpus_idx: 0, task_id: String::new(), skill: "x".into(),
+            turns: "[]".into(), win: false, wins: String::new(), blocked: false, blocked_by: String::new(),
+            tool_calls: 1, tokens_predicted: 10, duration_ms: 5, seed: 1, temperature: 0.6,
+            raw_json: "[]".into(), model_id: "m".into(), engine_commit: "e".into(), outcome: "refused".into(),
+            prompt_ms: 0.0, predicted_ms: 0.0, predicted_per_second: 0.0, corpus_kind: "attack".into(),
+            emission: false, d_blocked_calls: 0, legitimate_success: None, retry_budget: 0, attempts: 1,
+            gate_rejections: 0, d_terminal: None, deflection: false, deflection_calls: 0,
+            valid_output: true, spin_out: false, guided_policy: "[{\"tool\":\"fetchUrl\"}]".into(),
+        }
+    }
+
+    #[test]
+    fn insert_round_trips_new_columns() {
+        let c = open(":memory:").unwrap();
+        insert(&c, &rec()).unwrap();
+        let g: String = c.query_row("SELECT guided_policy FROM trials", [], |r| r.get(0)).unwrap();
+        assert!(g.contains("fetchUrl"));
+    }
 }
