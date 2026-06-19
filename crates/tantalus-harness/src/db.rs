@@ -5,6 +5,7 @@
 
 use crate::HarnessError;
 use rusqlite::Connection;
+use std::collections::HashSet;
 
 /// One per-trial row. Constructed by the runner from the `/eval` response plus the
 /// offline emission/D-overlay/legitimate-success computations.
@@ -104,6 +105,15 @@ pub fn open(path: &str) -> Result<Connection, HarnessError> {
     Ok(conn)
 }
 
+/// Crash-resume key set: every `(condition, seed)` already committed. A trial is persisted
+/// only on success, so any trial NOT in this set still needs to run — re-running the same
+/// command against the same DB resumes exactly the unfinished work (deterministic seeds).
+pub fn completed_keys(conn: &Connection) -> Result<HashSet<(String, i64)>, HarnessError> {
+    let mut stmt = conn.prepare("SELECT condition, seed FROM trials")?;
+    let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))?;
+    Ok(rows.collect::<Result<HashSet<_>, _>>()?)
+}
+
 pub fn insert(conn: &Connection, r: &TrialRecord) -> Result<(), HarnessError> {
     conn.execute(
         "INSERT INTO trials (
@@ -182,5 +192,12 @@ mod tests {
         insert(&c, &rec()).unwrap();
         let g: String = c.query_row("SELECT guided_policy FROM trials", [], |r| r.get(0)).unwrap();
         assert!(g.contains("fetchUrl"));
+    }
+
+    #[test]
+    fn completed_keys_tracks_inserted_condition_seed() {
+        let c = open(":memory:").unwrap();
+        insert(&c, &rec()).unwrap();
+        assert!(completed_keys(&c).unwrap().contains(&("c_guided".to_string(), 1)));
     }
 }

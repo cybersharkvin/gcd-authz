@@ -9,8 +9,9 @@
 //! D is NOT a live condition: it is derived offline from Control's logged trace
 //! (emission / d_blocked_calls columns), so `--conditions` covers control,a1,a2,a3,a4,c.
 
-use std::sync::Arc;
-use std::time::Instant;
+use std::collections::{HashSet, VecDeque};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tantalus_eval::{Condition, DTerminal, EvalRequest, EvalResponse, GuidedAction, RetryBudget};
 use tantalus_harness::db::{self, TrialRecord};
@@ -19,8 +20,7 @@ use tantalus_harness::{
     skill_id_for, spin_out, valid_output, AttackEntry, CorpusKind, HarnessError, LegitEntry,
     RequestedAction,
 };
-use tokio::sync::Semaphore;
-use tokio::task::JoinSet;
+use tokio::sync::mpsc;
 
 const DEFAULT_VICTIMS: &str = "http://localhost:3350,http://localhost:3351";
 const CONDITIONS: &[&str] = &["control", "a1", "a2", "a3", "a4", "c"];
@@ -105,8 +105,105 @@ struct TrialSpec {
     /// Requested in-scope actions for the deflection DV (attack trials only; empty for legit).
     requested: Vec<RequestedAction>,
     seed: u64,
-    victim: String,
     temperature: f32,
+    /// Transport-level retries left: on a dispatch error (victim unreachable / 5xx) the spec is
+    /// re-queued for another worker rather than lost, bounded so a deterministically-bad spec
+    /// cannot loop forever. Not the agent-loop / D gate retry budget — that is `gate`.
+    dispatch_retries_left: u8,
+}
+
+/// Transport retries before a trial is abandoned and counted as an error.
+const DISPATCH_RETRIES: u8 = 3;
+
+/// Shared pull queue: workers (one set per victim) pop the next spec when free, so a fast 5090
+/// drains ~4× more than a slow R9700 and no card tail-idles. Decouples trial from card — the
+/// seed (hence the result) is unchanged; only *which* card runs a given seed differs.
+type WorkQueue = Arc<Mutex<VecDeque<TrialSpec>>>;
+type ResultTx = mpsc::UnboundedSender<Result<TrialRecord, String>>;
+
+/// The live worker fleet. `add_victim` is idempotent (registry-gated) and hot-callable, so the
+/// victims-file poller can bring operator's GPUs into the SAME queue mid-run with no restart.
+#[derive(Clone)]
+struct Fleet {
+    queue: WorkQueue,
+    results: ResultTx,
+    registry: Arc<Mutex<HashSet<String>>>,
+    client: Arc<reqwest::Client>,
+    slots: usize,
+}
+
+impl Fleet {
+    /// Spawn `slots` workers bound to `url` iff not already present. Returns true if newly added.
+    fn add_victim(&self, url: &str) -> bool {
+        if !self.registry.lock().expect("registry").insert(url.to_string()) {
+            return false;
+        }
+        for _ in 0..self.slots {
+            let url = url.to_string();
+            let queue = Arc::clone(&self.queue);
+            let results = self.results.clone();
+            let client = Arc::clone(&self.client);
+            tokio::spawn(async move { worker(url, queue, results, client).await });
+        }
+        true
+    }
+}
+
+/// One worker = one in-flight slot on one victim. Loops: pop a spec, dispatch it, report the
+/// record. On a transport error it re-queues (bounded by `dispatch_retries_left`) so a victim
+/// hiccup never loses a trial. Exits only when the results receiver is gone (run complete).
+async fn worker(url: String, queue: WorkQueue, results: ResultTx, client: Arc<reqwest::Client>) {
+    loop {
+        let next = queue.lock().expect("queue").pop_front();
+        match next {
+            None => tokio::time::sleep(Duration::from_millis(50)).await,
+            Some(spec) => match run_trial(&client, &url, &spec).await {
+                Ok(rec) => {
+                    if results.send(Ok(rec)).is_err() {
+                        return;
+                    }
+                }
+                Err(e) => {
+                    if spec.dispatch_retries_left > 0 {
+                        let mut spec = spec;
+                        spec.dispatch_retries_left -= 1;
+                        queue.lock().expect("queue").push_back(spec);
+                        tokio::time::sleep(Duration::from_millis(250)).await;
+                    } else if results.send(Err(e)).is_err() {
+                        return;
+                    }
+                }
+            },
+        }
+    }
+}
+
+/// Re-read `path` every 5s; any new victim URL (blank/`#` lines ignored) that verifies reachable
+/// is hot-added to the fleet. This is the operator hatch: append his tunneled URLs → ≤5s later his
+/// cards pull from the same queue, auto-balanced by speed.
+async fn poll_victims_file(path: String, fleet: Fleet) {
+    loop {
+        if let Ok(contents) = tokio::fs::read_to_string(&path).await {
+            for line in contents.lines() {
+                let url = line.trim();
+                if url.is_empty() || url.starts_with('#') || fleet.registry.lock().expect("registry").contains(url) {
+                    continue;
+                }
+                if victim_reachable(&fleet.client, url).await {
+                    if fleet.add_victim(url) {
+                        println!("  [fleet] + victim {url} ({} slots)", fleet.slots);
+                    }
+                } else {
+                    eprintln!("  [fleet] victim {url} not reachable yet — will retry");
+                }
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+}
+
+async fn victim_reachable(client: &reqwest::Client, url: &str) -> bool {
+    matches!(client.get(url).send().await, Ok(r) if r.status().is_success())
 }
 
 #[tokio::main]
@@ -132,7 +229,11 @@ async fn run() -> Result<(), HarnessError> {
     let db_path = flag(&args, "--db", "harness/experiment.db");
     let rounds: usize = flag(&args, "--rounds-per-condition", "2000").parse().map_err(|_| HarnessError::Config("bad --rounds-per-condition".into()))?;
     let legit_rounds: usize = flag(&args, "--legit-rounds", "1").parse().map_err(|_| HarnessError::Config("bad --legit-rounds".into()))?;
-    let concurrency: usize = flag(&args, "--concurrency", "16").parse().map_err(|_| HarnessError::Config("bad --concurrency".into()))?;
+    let slots_per_victim: usize = flag(&args, "--slots-per-victim", "256").parse().map_err(|_| HarnessError::Config("bad --slots-per-victim".into()))?;
+    let victims_file = opt_flag(&args, "--victims-file");
+    // Interleave conditions in `cycles` passes (each pass runs 1/cycles of EVERY condition), so a
+    // crash leaves ~equal partial coverage across all cells instead of some complete + some empty.
+    let cycles: usize = flag(&args, "--cycles", "4").parse().map_err(|_| HarnessError::Config("bad --cycles".into())).map(|c: usize| c.max(1))?;
     let temperature: f32 = flag(&args, "--temperature", "0.6").parse().map_err(|_| HarnessError::Config("bad --temperature".into()))?;
     let victims: Vec<String> = flag(&args, "--victims", DEFAULT_VICTIMS).split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
     let conditions: Vec<String> = flag(&args, "--conditions", &CONDITIONS.join(",")).split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
@@ -151,23 +252,77 @@ async fn run() -> Result<(), HarnessError> {
         println!("legit:  {} tasks from {}", legit.len(), legit_path.as_deref().unwrap_or(""));
     }
     println!("victims: {:?}", victims);
-    println!("conditions: {:?}  rounds/condition: {rounds}  concurrency: {concurrency}", conditions);
+    println!("conditions: {:?}  rounds/condition: {rounds}  slots/victim: {slots_per_victim}", conditions);
+    if let Some(f) = &victims_file {
+        println!("victims-file: {f} (polled every 5s for hot-add)");
+    }
 
     let client = Arc::new(reqwest::Client::new());
     verify_victims(&client, &victims).await?;
 
     let conn = db::open(&db_path)?;
-    println!("results db: {db_path}\n");
+    // Crash-resume: trials already committed to this DB are skipped, so re-running the same
+    // command after a power cut / kill picks up exactly where it stopped (deterministic seeds).
+    let done = db::completed_keys(&conn)?;
+    println!("results db: {db_path}");
+    if !done.is_empty() {
+        println!("resume: {} trials already in DB — will be skipped", done.len());
+    }
+    println!();
 
-    for cond_str in &conditions {
-        let (condition, gate) = parse_condition(cond_str).ok_or_else(|| HarnessError::Config(format!("unknown condition: {cond_str}")))?;
-        let cond_idx = cond_seed_base(cond_str);
-        let specs = build_specs(condition, gate, cond_str, cond_idx, &corpus, &legit, rounds, legit_rounds, &victims, temperature);
-        run_condition(cond_str, &client, &conn, specs, concurrency).await?;
+    // One shared pull queue + one results channel for the whole run. Workers (one set of
+    // `slots_per_victim` per victim) pull from the queue and report into the channel; the main
+    // loop is the single SQLite writer. Fast cards drain more — no static partition, no tail-idle.
+    let (results_tx, mut results_rx) = mpsc::unbounded_channel::<Result<TrialRecord, String>>();
+    let fleet = Fleet {
+        queue: Arc::new(Mutex::new(VecDeque::new())),
+        results: results_tx,
+        registry: Arc::new(Mutex::new(HashSet::new())),
+        client: Arc::clone(&client),
+        slots: slots_per_victim,
+    };
+    for v in &victims {
+        fleet.add_victim(v);
+    }
+    if let Some(path) = victims_file {
+        tokio::spawn(poll_victims_file(path, fleet.clone()));
+    }
+
+    for cycle in 0..cycles {
+        if cycles > 1 {
+            println!("\n========== CYCLE {}/{} ==========", cycle + 1, cycles);
+        }
+        for cond_str in &conditions {
+            let (condition, gate) = parse_condition(cond_str).ok_or_else(|| HarnessError::Config(format!("unknown condition: {cond_str}")))?;
+            let cond_idx = cond_seed_base(cond_str);
+            let mut specs = build_specs(condition, gate, cond_str, cond_idx, &corpus, &legit, rounds, legit_rounds, temperature, cycle, cycles);
+            if !done.is_empty() {
+                let before = specs.len();
+                specs.retain(|s| !done.contains(&(s.condition_str.clone(), s.seed as i64)));
+                let skipped = before - specs.len();
+                if skipped > 0 {
+                    println!("== {} c{}/{} : {skipped} already done, {} remaining ==", cond_str.to_uppercase(), cycle + 1, cycles, specs.len());
+                }
+            }
+            if specs.is_empty() {
+                continue;
+            }
+            let label = if cycles > 1 { format!("{cond_str} c{}/{}", cycle + 1, cycles) } else { cond_str.clone() };
+            run_condition(&label, &fleet.queue, &mut results_rx, &conn, specs).await?;
+        }
     }
 
     println!("\ndone. analyze with: experiment overlay --db {db_path}");
     Ok(())
+}
+
+/// Inclusive-exclusive `[lo, hi)` slice of `total` items for `cycle` of `cycles`. The cycles
+/// partition `0..total` with no gaps or overlap; the last cycle absorbs any remainder. Seeds are
+/// `base + index`, so slicing only changes the ORDER trials run in, never which seed maps to which
+/// trial — resume keys `(condition, seed)` stay stable whether or not cycling is used.
+fn cycle_range(total: usize, cycle: usize, cycles: usize) -> (usize, usize) {
+    let cycles = cycles.max(1);
+    (cycle * total / cycles, (cycle + 1) * total / cycles)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -180,13 +335,16 @@ fn build_specs(
     legit: &[LegitEntry],
     rounds: usize,
     legit_rounds: usize,
-    victims: &[String],
     temperature: f32,
+    cycle: usize,
+    cycles: usize,
 ) -> Vec<TrialSpec> {
     let legit_rounds = legit_rounds.max(1);
-    let mut specs = Vec::with_capacity(rounds + legit.len() * legit_rounds);
     let base = 1000 * cond_idx;
-    for i in 0..rounds {
+    let (attack_lo, attack_hi) = cycle_range(rounds, cycle, cycles);
+    let (legit_lo, legit_hi) = cycle_range(legit.len() * legit_rounds, cycle, cycles);
+    let mut specs = Vec::with_capacity((attack_hi - attack_lo) + (legit_hi - legit_lo));
+    for i in attack_lo..attack_hi {
         let entry = &corpus[i % corpus.len()];
         let seed = base + i as u64;
         specs.push(TrialSpec {
@@ -202,64 +360,64 @@ fn build_specs(
             expected: None,
             requested: entry.requested_set(),
             seed,
-            victim: victims[(seed as usize) % victims.len()].clone(),
             temperature,
+            dispatch_retries_left: DISPATCH_RETRIES,
         });
     }
     // Legitimate tasks run under every condition (RQ4), each replicated `legit_rounds`
-    // times with distinct seeds. `task_id` is the clustering key (replicates of one task
-    // are not independent distinct tasks); falls back to `task` for the legacy corpus.
-    for (j, e) in legit.iter().enumerate() {
+    // times with distinct seeds. The flat index `k = j*legit_rounds + r` is sliced by the same
+    // cycle range as the attacks; `task_id` is the clustering key (replicates of one task are not
+    // independent distinct tasks); falls back to `task` for the legacy corpus.
+    for k in legit_lo..legit_hi {
+        let e = &legit[k / legit_rounds];
         let task_id = e.task_id.clone().unwrap_or_else(|| e.task.clone());
-        for r in 0..legit_rounds {
-            let seed = base + 900_000 + (j * legit_rounds + r) as u64;
-            specs.push(TrialSpec {
-                condition,
-                gate,
-                condition_str: cond_str.to_string(),
-                corpus_idx: j as i64,
-                kind: CorpusKind::Legitimate,
-                task_id: task_id.clone(),
-                skill_id: skill_id_for(&e.task).to_string(),
-                skill_label: e.task.clone(),
-                turns: e.turns.clone(),
-                expected: Some((e.expected_tool.clone(), e.expected_param.clone())),
-                requested: vec![],
-                seed,
-                victim: victims[(seed as usize) % victims.len()].clone(),
-                temperature,
-            });
-        }
+        let seed = base + 900_000 + k as u64;
+        specs.push(TrialSpec {
+            condition,
+            gate,
+            condition_str: cond_str.to_string(),
+            corpus_idx: (k / legit_rounds) as i64,
+            kind: CorpusKind::Legitimate,
+            task_id,
+            skill_id: skill_id_for(&e.task).to_string(),
+            skill_label: e.task.clone(),
+            turns: e.turns.clone(),
+            expected: Some((e.expected_tool.clone(), e.expected_param.clone())),
+            requested: vec![],
+            seed,
+            temperature,
+            dispatch_retries_left: DISPATCH_RETRIES,
+        });
     }
     specs
 }
 
 async fn run_condition(
     cond_str: &str,
-    client: &Arc<reqwest::Client>,
+    queue: &WorkQueue,
+    results_rx: &mut mpsc::UnboundedReceiver<Result<TrialRecord, String>>,
     conn: &rusqlite::Connection,
     specs: Vec<TrialSpec>,
-    concurrency: usize,
 ) -> Result<(), HarnessError> {
     let total = specs.len();
     println!("== condition {} : {total} trials ==", cond_str.to_uppercase());
-    let sem = Arc::new(Semaphore::new(concurrency));
-    let mut set: JoinSet<Result<TrialRecord, String>> = JoinSet::new();
-
-    for spec in specs {
-        let client = Arc::clone(client);
-        let sem = Arc::clone(&sem);
-        set.spawn(async move {
-            let _permit = sem.acquire().await.expect("semaphore");
-            run_trial(&client, spec).await
-        });
+    // Enqueue this condition's specs; the standing worker fleet drains them. Conditions run
+    // sequentially and we collect exactly `total` results before enqueuing the next, so the
+    // results we read here all belong to this condition (one send per spec, win or error).
+    {
+        let mut q = queue.lock().expect("queue");
+        for spec in specs {
+            q.push_back(spec);
+        }
     }
 
     let start = Instant::now();
     let (mut done, mut wins, mut blocked, mut errors, mut emissions) = (0usize, 0usize, 0usize, 0usize, 0usize);
-    while let Some(joined) = set.join_next().await {
-        match joined {
-            Ok(Ok(rec)) => {
+    let mut collected = 0usize;
+    while collected < total {
+        match results_rx.recv().await {
+            Some(Ok(rec)) => {
+                collected += 1;
                 done += 1;
                 if rec.win { wins += 1; }
                 if rec.blocked { blocked += 1; }
@@ -270,8 +428,12 @@ async fn run_condition(
                     println!("  [{cond_str}] {done}/{total} | wins={wins} blocked={blocked} emit={emissions} | {rate:.0}/min");
                 }
             }
-            Ok(Err(e)) => { errors += 1; if errors <= 5 { eprintln!("  trial error: {e}"); } }
-            Err(e) => { errors += 1; eprintln!("  join error: {e}"); }
+            Some(Err(e)) => {
+                collected += 1;
+                errors += 1;
+                if errors <= 5 { eprintln!("  trial error: {e}"); }
+            }
+            None => return Err(HarnessError::Config("worker fleet died (all senders dropped)".into())),
         }
     }
     let pct = if done > 0 { 100.0 * wins as f64 / done as f64 } else { 0.0 };
@@ -279,7 +441,7 @@ async fn run_condition(
     Ok(())
 }
 
-async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRecord, String> {
+async fn run_trial(client: &reqwest::Client, victim: &str, spec: &TrialSpec) -> Result<TrialRecord, String> {
     // C-guided (ADR 0003): send the TRUSTED authorized policy — the requested-set for attacks, the
     // expected call for legit tasks — both derived from the task IDENTITY, never from skill content.
     let guided_policy: Option<Vec<GuidedAction>> = (spec.condition == Condition::CGuided).then(|| match spec.kind {
@@ -301,7 +463,7 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
         gate: spec.gate,
         guided_policy,
     };
-    let url = format!("{}/eval", spec.victim.trim_end_matches('/'));
+    let url = format!("{}/eval", victim.trim_end_matches('/'));
     let resp = client.post(&url).json(&req).send().await.map_err(|e| format!("{} post: {e}", spec.skill_label))?;
     if !resp.status().is_success() {
         return Err(format!("{} status {}", spec.skill_label, resp.status()));
@@ -321,10 +483,10 @@ async fn run_trial(client: &reqwest::Client, spec: TrialSpec) -> Result<TrialRec
     };
 
     Ok(TrialRecord {
-        condition: spec.condition_str,
+        condition: spec.condition_str.clone(),
         corpus_idx: spec.corpus_idx,
-        task_id: spec.task_id,
-        skill: spec.skill_label,
+        task_id: spec.task_id.clone(),
+        skill: spec.skill_label.clone(),
         turns: serde_json::to_string(&spec.turns).unwrap_or_default(),
         win: r.win,
         wins: r.wins.join(","),
@@ -511,5 +673,11 @@ mod tests {
     fn parse_rejects_unknown_generator_and_bad_budget() {
         assert_eq!(parse_condition("bogus"), None);
         assert_eq!(parse_condition("a4_d_r2"), None);
+    }
+
+    #[test]
+    fn cycle_range_partitions_with_no_gaps_or_overlap() {
+        let r: Vec<_> = (0..4).map(|c| cycle_range(10, c, 4)).collect();
+        assert_eq!(r, vec![(0, 2), (2, 5), (5, 7), (7, 10)]);
     }
 }
