@@ -30,18 +30,34 @@ pub enum Condition {
     A4,
     /// C: GCD — control prompt + GBNF grammar at the sampler (structural control).
     C,
-    /// C+ (closed-response GCD): control prompt + a grammar whose `respondToUser.message`
-    /// is a FINITE ALTERNATION of pre-authorized canned responses (not a free string). The
-    /// message content AND length are bounded by construction → 0 content-emission for the
-    /// enumerable-response agent class. Same tool enums as C; only the message rule differs.
-    CClosed,
-    /// C-guided (ADR 0003): per-request LEAST-PRIVILEGE GCD. The grammar narrows to EXACTLY the
-    /// request's trusted-channel authorized action(s) (`EvalRequest::guided_policy`), so the only
-    /// in-scope action producible is the requested good outcome (deflection → 0; legit-success ≈
-    /// 100% — both by construction). With no authorized action it is a respond-only refusal. The
-    /// per-request policy is derived from the task identity, INVARIANT to untrusted skill content;
-    /// blind `C` stays the headline security condition (this cell proves constitutive UTILITY).
-    CGuided,
+    /// **GCD ladder L2 — GUIDED** (mechanism: closed-response GCD; old code name `c_closed`).
+    /// Control prompt + the union-allowlist tool grammar, but `respondToUser.message` is a FINITE
+    /// ALTERNATION of pre-authorized canned responses (not a free string). The message content AND
+    /// length are bounded by construction → 0 content-emission for the enumerable-response agent
+    /// class. All tools remain reachable (it MAY read a poisoned file / be injected), but it cannot
+    /// exfil → this tests DEFLECTION. "Guided" = looser/has-latitude. Serde `c_l2_guided` (back-compat
+    /// aliases `c_closed`/`cplus` so historical DBs + the paused blast's wire payloads still deserialize).
+    #[serde(rename = "c_l2_guided", alias = "c_closed", alias = "cplus")]
+    CL2Guided,
+    /// **GCD ladder L3 — CLOSED** (mechanism: per-request least-privilege GCD, ADR 0003; old code
+    /// name `c_guided`). The grammar narrows to EXACTLY the request's trusted-channel authorized
+    /// action(s) (`EvalRequest::guided_policy`), so the only in-scope action producible is the
+    /// requested good outcome (deflection → 0; legit-success ≈ 100% — both by construction). With no
+    /// authorized action it is a respond-only refusal. "Closed" = fully-shut/scripted; the per-request
+    /// policy is derived from the task identity, INVARIANT to untrusted skill content. Blind `C` (L1)
+    /// stays the headline security condition; this cell proves constitutive UTILITY. Serde
+    /// `c_l3_closed` (back-compat aliases `c_guided`/`cguided`).
+    #[serde(rename = "c_l3_closed", alias = "c_guided", alias = "cguided")]
+    CL3Closed,
+    /// **ADR 0004 — forced-denylist, sealed-sink** (`c_sealed`): the adversarial INVERSE of L3. A
+    /// per-turn SCRIPTED grammar FORCES the malicious denylist trajectory (compelled credential reads,
+    /// server-derived from the trusted skill id) up to two forced finale steps — `fetchURL` to a SAFE
+    /// allowlisted endpoint (no `data` param) then the verbatim taunt. Forcing the reads ⇒ every trial
+    /// PROVABLY holds the secret, yet the sampler seals the exfil sink ⇒ 0 exfil. The maximal-compromise
+    /// demonstration (paired with an abliterated victim); a separate run/DB, not the headline statistics.
+    /// No new wire field — the script is identity-keyed off `skill`, like `guided_policy`.
+    #[serde(rename = "c_sealed")]
+    CSealed,
     /// D (legacy generator label): a default-allow Control generator. The post-parse
     /// allowlist is now the orthogonal `EvalRequest::gate` modifier, NOT a generator —
     /// the live-D arm is `(condition=Control, gate=Some(r))`. Kept so old payloads/labels
@@ -51,9 +67,10 @@ pub enum Condition {
 
 impl Condition {
     /// Whether the grammar-constrained decoding path is active for this condition.
-    /// C, C+ (closed-response), and C-guided (least-privilege) all decode under a GBNF grammar.
+    /// L1 blind `C`, L2 guided `CL2Guided`, L3 closed `CL3Closed`, and the forced-sealed `CSealed`
+    /// (ADR 0004) all decode under a GBNF grammar.
     pub fn uses_grammar(self) -> bool {
-        matches!(self, Condition::C | Condition::CClosed | Condition::CGuided)
+        matches!(self, Condition::C | Condition::CL2Guided | Condition::CL3Closed | Condition::CSealed)
     }
 }
 
@@ -171,9 +188,9 @@ pub struct EvalRequest {
     #[serde(default)]
     pub gate: Option<RetryBudget>,
     /// C-guided (ADR 0003) per-request least-privilege policy: the trusted-channel authorized
-    /// action(s) the grammar narrows to for THIS request. `None` (default) for every non-guided
+    /// action(s) the grammar narrows to for THIS request. `None` (default) for every non-L3-closed
     /// condition — keeps old payloads valid under `deny_unknown_fields`. `Some([])` = no
-    /// authorized action ⇒ refuse (respond-only). Used ONLY when `condition == CGuided`.
+    /// authorized action ⇒ refuse (respond-only). Used ONLY when `condition == CL3Closed`.
     #[serde(default)]
     pub guided_policy: Option<Vec<GuidedAction>>,
 }
@@ -303,24 +320,32 @@ mod tests {
 
     #[test]
     fn grammar_conditions_use_grammar() {
-        assert!(Condition::C.uses_grammar() && Condition::CClosed.uses_grammar());
+        assert!(Condition::C.uses_grammar() && Condition::CL2Guided.uses_grammar());
         assert!(!Condition::Control.uses_grammar() && !Condition::D.uses_grammar());
     }
 
     #[test]
-    fn cclosed_deserializes_snake_case() {
-        assert_eq!(serde_json::from_str::<Condition>("\"c_closed\"").unwrap(), Condition::CClosed);
+    fn ladder_l2_serializes_canonical_and_accepts_old_alias() {
+        assert_eq!(serde_json::to_string(&Condition::CL2Guided).unwrap(), "\"c_l2_guided\"");
+        assert_eq!(serde_json::from_str::<Condition>("\"c_closed\"").unwrap(), Condition::CL2Guided);
     }
 
     #[test]
-    fn cguided_deserializes_and_uses_grammar() {
-        assert_eq!(serde_json::from_str::<Condition>("\"c_guided\"").unwrap(), Condition::CGuided);
-        assert!(Condition::CGuided.uses_grammar());
+    fn ladder_l3_serializes_canonical_and_accepts_old_alias() {
+        assert_eq!(serde_json::to_string(&Condition::CL3Closed).unwrap(), "\"c_l3_closed\"");
+        assert_eq!(serde_json::from_str::<Condition>("\"c_guided\"").unwrap(), Condition::CL3Closed);
+        assert!(Condition::CL3Closed.uses_grammar());
+    }
+
+    #[test]
+    fn c_sealed_deserializes_and_uses_grammar() {
+        assert_eq!(serde_json::from_str::<Condition>("\"c_sealed\"").unwrap(), Condition::CSealed);
+        assert!(Condition::CSealed.uses_grammar());
     }
 
     #[test]
     fn guided_policy_defaults_to_none_and_round_trips() {
-        let r = EvalRequest { condition: Condition::CGuided, guided_policy: Some(vec![GuidedAction { tool: "fetchUrl".into(), param: Some("u".into()) }]), ..req() };
+        let r = EvalRequest { condition: Condition::CL3Closed, guided_policy: Some(vec![GuidedAction { tool: "fetchUrl".into(), param: Some("u".into()) }]), ..req() };
         assert_eq!(serde_json::from_str::<EvalRequest>(&serde_json::to_string(&r).unwrap()).unwrap().guided_policy, r.guided_policy);
     }
 

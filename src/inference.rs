@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tantalus_env::Environment;
-use tantalus_grammar::{build_closed_response_gbnf, build_guided_gbnf, build_respond_only_closed_gbnf, build_respond_only_gbnf, build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tantalus_grammar::{build_forced_action_gbnf, build_forced_respond_gbnf, build_l2_guided_gbnf, build_l3_closed_gbnf, build_respond_only_closed_gbnf, build_respond_only_gbnf, build_round2_gbnf, email_ids, file_paths, player_channel_ids, safe_fetch_urls, FreeStringStyle, SealedStep};
 use tantalus_llm::*;
 use tantalus_pipeline::prompt::Condition;
 use tantalus_pipeline::{InferenceResponse, PipelineError, PipelineInput};
@@ -19,6 +20,12 @@ pub struct LlamaCppInferenceStep {
     /// ADR 0002: the respondToUser-only termination grammar. `Some` iff a grammar is active
     /// (C / C+); `None` for the native-tool arms. Drives `forces_respond` / `next_turn_force_respond`.
     respond_only_gbnf: Option<String>,
+    /// ADR 0004: the per-turn SCRIPTED grammars for `c_sealed` (forced-denylist, sealed-sink). `Some`
+    /// iff `condition == CSealed`: one forced grammar per turn (the denylist reads, then the universal
+    /// `fetchURL`-safe + verbatim-taunt finale; the last element is sticky). `None` for every other arm,
+    /// so non-sealed behavior is byte-identical. `cursor` is the interior-mutable turn index.
+    sealed_script: Option<Vec<String>>,
+    cursor: AtomicUsize,
 }
 
 impl LlamaCppInferenceStep {
@@ -27,15 +34,16 @@ impl LlamaCppInferenceStep {
     }
 
     pub fn with_condition(client: Arc<LlmClient>, env: Arc<Environment>, round: Round, condition: tantalus_pipeline::prompt::Condition) -> Self {
-        Self::full(client, env, round, condition, 0.7, None, &[])
+        Self::full(client, env, round, condition, 0.7, None, &[], "")
     }
 
-    /// `guided_policy` is the trusted-channel authorized action set for Condition C-guided
-    /// (ADR 0003), `(trace_tool, Option<value>)`; ignored for every other condition. Empty for
-    /// the non-experimental `/chat` path (it never uses C-guided).
+    /// `guided_policy` is the trusted-channel authorized action set for L3 closed (CL3Closed,
+    /// ADR 0003), `(trace_tool, Option<value>)`; ignored for every other condition. `skill_id` is the
+    /// trusted task identity — used ONLY by `c_sealed` (ADR 0004) to derive the per-turn forced
+    /// denylist script server-side. Both are empty for the non-experimental `/chat` path.
     pub fn full(client: Arc<LlmClient>, env: Arc<Environment>, round: Round,
                 condition: tantalus_pipeline::prompt::Condition, temperature: f32, seed: Option<u64>,
-                guided_policy: &[(&str, Option<&str>)]) -> Self {
+                guided_policy: &[(&str, Option<&str>)], skill_id: &str) -> Self {
         // Free-string repetition style is an ENGINE choice: xgrammar (vLLM/SGLang) chokes
         // on `{0,N}` (unrolls to N states, ~60s/compile at N=400 on vLLM 0.23.0), so use
         // the Kleene star there; llama.cpp GBNF keeps the bound (cheap + truncation-proof).
@@ -44,18 +52,20 @@ impl LlamaCppInferenceStep {
             Backend::Vllm | Backend::Sglang => FreeStringStyle::Unbounded,
         };
         let gbnf = match round {
-            // C+ (CClosed) enumerates respondToUser.message as a closed alternation of canned
-            // responses; plain C uses the free-string message. Tool enums identical.
-            Round::Two if condition == Condition::CClosed => {
+            // L2 guided (CL2Guided) enumerates respondToUser.message as a closed alternation of canned
+            // responses; plain L1 blind C uses the free-string message. Tool enums identical.
+            Round::Two if condition == Condition::CL2Guided => {
                 let responses = closed_responses();
                 let refs: Vec<&str> = responses.iter().map(|s| s.as_str()).collect();
-                Some(build_closed_response_gbnf(
+                Some(build_l2_guided_gbnf(
                     &safe_fetch_urls(), &player_channel_ids(), &email_ids(), &file_paths(), &refs, style,
                 ))
             }
-            // C-guided (ADR 0003): per-request least-privilege grammar narrowed to the trusted
-            // authorized action(s). Empty policy → respond-only (refusal) by construction.
-            Round::Two if condition == Condition::CGuided => Some(build_guided_gbnf(guided_policy, style)),
+            // L3 closed (CL3Closed, ADR 0003): per-request least-privilege grammar narrowed to the
+            // trusted authorized action(s). Empty policy → respond-only (refusal) by construction.
+            Round::Two if condition == Condition::CL3Closed => Some(build_l3_closed_gbnf(guided_policy, style)),
+            // c_sealed (ADR 0004) uses the per-turn `sealed_script` below, NOT one static grammar.
+            Round::Two if condition == Condition::CSealed => None,
             Round::Two => Some(build_round2_gbnf(
                 &safe_fetch_urls(),
                 &player_channel_ids(),
@@ -67,16 +77,34 @@ impl LlamaCppInferenceStep {
         };
         // ADR 0002: termination grammar (respondToUser only), built with the SAME message style /
         // canned corpus as `gbnf`. Some iff a grammar is active (C / C+); None for native-tool arms.
+        // For c_sealed it is `None` — the script's sticky last element IS the forced terminal respond.
         let respond_only_gbnf = match round {
-            Round::Two if condition == Condition::CClosed => {
+            Round::Two if condition == Condition::CL2Guided => {
                 let responses = closed_responses();
                 let refs: Vec<&str> = responses.iter().map(|s| s.as_str()).collect();
                 Some(build_respond_only_closed_gbnf(&refs))
             }
+            Round::Two if condition == Condition::CSealed => None,
             Round::Two => Some(build_respond_only_gbnf(style)),
             Round::One => None,
         };
-        Self { client, env, round, condition, temperature, seed, history: Mutex::new(Vec::new()), gbnf, respond_only_gbnf }
+        // ADR 0004: the per-turn forced grammars, derived server-side from the trusted skill id. Each
+        // `SealedStep` maps to ONE forced grammar (the same `*_RULE` consts / accessors as the full
+        // grammar, so no drift). Built only for `CSealed`; `None` everywhere else.
+        let sealed_script = if round == Round::Two && condition == Condition::CSealed {
+            Some(
+                tantalus_grammar::sealed_script(skill_id)
+                    .iter()
+                    .map(|step| match step {
+                        SealedStep::Action { tool, values } => build_forced_action_gbnf(tool, values),
+                        SealedStep::Respond(literal) => build_forced_respond_gbnf(literal),
+                    })
+                    .collect::<Vec<String>>(),
+            )
+        } else {
+            None
+        };
+        Self { client, env, round, condition, temperature, seed, history: Mutex::new(Vec::new()), gbnf, respond_only_gbnf, sealed_script, cursor: AtomicUsize::new(0) }
     }
 }
 
@@ -222,7 +250,10 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
         messages.push(ChatMessage::User { content: input.user_input.clone() });
 
         let tools = if self.round == Round::One { Some(build_tool_defs()) } else { None };
-        let grammar = self.gbnf.as_deref();
+        // c_sealed (ADR 0004) supplies the first forced grammar (advancing its cursor); every other
+        // grammar arm uses the static `gbnf`; native-tool arms get `None`.
+        let sealed = self.sealed_grammar_next();
+        let grammar = sealed.as_deref().or(self.gbnf.as_deref());
 
         let (resp, usage) = self.client.chat_with_params(
             &messages,
@@ -261,8 +292,9 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
                 Ok(InferenceResponse { raw_json: raw, tool_call: tc, text: None, cost, timings })
             }
             LlmResponse::Text(text) => {
-                // R2: text is GBNF-constrained JSON — parse as tool call
-                if self.gbnf.is_some() {
+                // R2: text is GBNF-constrained JSON — parse as tool call. Key on the grammar ACTUALLY
+                // used this turn (sealed or static), not `self.gbnf` (None for the sealed arm).
+                if grammar.is_some() {
                     let tc = parse_tool_call_from_json(&text);
                     let raw = text.clone();
                     let assistant = match &tc {
@@ -284,13 +316,22 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
     }
 
     async fn next_turn(&self, result: &ToolResult) -> Result<InferenceResponse, PipelineError> {
-        self.next_turn_with_grammar(result, self.gbnf.as_deref()).await
+        // c_sealed (ADR 0004): the NEXT forced grammar (cursor advances; clamps to the sticky taunt).
+        // Every other arm regenerates under the static `gbnf` (native-tool arms: `None`).
+        match self.sealed_grammar_next() {
+            Some(g) => self.next_turn_with_grammar(result, Some(&g)).await,
+            None => self.next_turn_with_grammar(result, self.gbnf.as_deref()).await,
+        }
     }
 
     /// ADR 0002: regenerate constrained to the respond-only grammar (C / C+) so the model can only
-    /// emit a closing respondToUser. For the native-tool arms there is no respond-only grammar, so
-    /// this is exactly `next_turn` (no behavioral change).
+    /// emit a closing respondToUser. ADR 0004: for the sealed arm the forced terminal is the taunt
+    /// (the script's last element). For the native-tool arms there is no termination grammar, so this
+    /// is exactly `next_turn` (no behavioral change).
     async fn next_turn_force_respond(&self, result: &ToolResult) -> Result<InferenceResponse, PipelineError> {
+        if let Some(g) = self.sealed_respond_grammar() {
+            return self.next_turn_with_grammar(result, Some(&g)).await;
+        }
         match self.respond_only_gbnf.as_deref() {
             Some(g) => self.next_turn_with_grammar(result, Some(g)).await,
             None => self.next_turn(result).await,
@@ -298,11 +339,27 @@ impl tantalus_pipeline::InferenceStep for LlamaCppInferenceStep {
     }
 
     fn forces_respond(&self) -> bool {
-        self.respond_only_gbnf.is_some()
+        self.respond_only_gbnf.is_some() || self.sealed_script.is_some()
     }
 }
 
 impl LlamaCppInferenceStep {
+    /// ADR 0004: pull the forced grammar for the CURRENT turn and advance the cursor. `None` for every
+    /// non-sealed arm (no cursor effect). The index is clamped to the last script element (sticky = the
+    /// forced terminal respondToUser=taunt), so the loop can never run past the script.
+    fn sealed_grammar_next(&self) -> Option<String> {
+        let script = self.sealed_script.as_ref()?;
+        let i = self.cursor.fetch_add(1, Ordering::Relaxed).min(script.len() - 1);
+        Some(script[i].clone())
+    }
+
+    /// ADR 0004: the sealed arm's forced TERMINAL grammar (the verbatim taunt = the script's last
+    /// element). `next_turn_force_respond` uses it so the loop's dedup/cap backstop still lands on the
+    /// taunt. `None` for non-sealed arms.
+    fn sealed_respond_grammar(&self) -> Option<String> {
+        self.sealed_script.as_ref().and_then(|s| s.last().cloned())
+    }
+
     /// Shared body for `next_turn` / `next_turn_force_respond`: append the tool result, regenerate
     /// under the supplied `grammar` (`None` = native tools), and parse the assistant turn. The
     /// "parse Text as a JSON tool call" branch keys on `grammar.is_some()` (the passed grammar, not
@@ -374,6 +431,30 @@ impl LlamaCppInferenceStep {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Build the real driver with a network-free client + the embedded CTF env; `sealed_grammar_next`
+    // touches only `sealed_script`/`cursor`, so no inference call happens.
+    fn sealed_step(skill: &str) -> LlamaCppInferenceStep {
+        let cfg = LlmConfig { endpoint: "http://x".into(), model: "x".into(), backend: Backend::Vllm, thinking: ThinkingControl::None };
+        let client = Arc::new(LlmClient::new(cfg));
+        let env = Arc::new(Environment::load().unwrap());
+        LlamaCppInferenceStep::full(client, env, Round::Two, Condition::CSealed, 0.6, None, &[], skill)
+    }
+
+    #[test]
+    fn sealed_driver_walks_script_then_sticks_on_taunt() {
+        let step = sealed_step("sso-validator");
+        let seq: Vec<String> = (0..5).map(|_| step.sealed_grammar_next().unwrap()).collect();
+        assert!(seq[0].contains("api-keys.json") && seq[1].contains("fetch-url") && seq[2].contains("prevents prompt injection"));
+        assert!(seq[3] == seq[2] && seq[4] == seq[2]);
+    }
+
+    #[test]
+    fn non_sealed_arm_has_no_script() {
+        let cfg = LlmConfig { endpoint: "http://x".into(), model: "x".into(), backend: Backend::Vllm, thinking: ThinkingControl::None };
+        let step = LlamaCppInferenceStep::full(Arc::new(LlmClient::new(cfg)), Arc::new(Environment::load().unwrap()), Round::Two, Condition::C, 0.6, None, &[], "infra-monitor");
+        assert!(step.sealed_grammar_next().is_none() && step.sealed_respond_grammar().is_none());
+    }
 
     #[test]
     fn fresh_call_id_is_mistral_shaped() {

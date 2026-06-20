@@ -179,9 +179,9 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
     let mut gate_retries = 0u32;
     let mut availability_failure = false;
 
-    // C-guided (ADR 0003): the trusted-channel authorized policy travels in the request (the
-    // server cannot re-derive it for legit trials, whose skill_id is an unmapped passthrough).
-    // Borrowed for the lifetime of `req`; ignored unless condition == CGuided.
+    // L3 closed (CL3Closed, ADR 0003): the trusted-channel authorized policy travels in the request
+    // (the server cannot re-derive it for legit trials, whose skill_id is an unmapped passthrough).
+    // Borrowed for the lifetime of `req`; ignored unless condition == CL3Closed.
     let guided_policy: Vec<(&str, Option<&str>)> = req
         .guided_policy
         .as_deref()
@@ -207,6 +207,7 @@ async fn eval(State(state): State<Arc<AppState>>, axum::Json(req): axum::Json<Ev
             req.temperature,
             req.seed,
             &guided_policy,
+            &req.skill,
         ));
         let tool_exec = ToolExecStepImpl::new(Executor::new(Arc::clone(&state.env)), Arc::clone(&state.env));
         let (pre, post) = condition_steps(&state, condition, gate_on);

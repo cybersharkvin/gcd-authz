@@ -29,7 +29,7 @@ const CONDITIONS: &[&str] = &["control", "a1", "a2", "a3", "a4", "c"];
 ///
 /// The gate is the orthogonal `generator × gate` factorial (the user's 2026-06-17 reframe):
 /// any generator can carry a `_d_rN` gate suffix. Forms:
-///   `control`/`a1`/`a2`/`a3`/`a4`/`c`/`c_closed` → (generator, None)  — no gate
+///   `control`/`a1`/`a2`/`a3`/`a4`/`c`/`c_l2_guided`/`c_l3_closed` → (generator, None)  — no gate
 ///   `d_r0`/`d_r1`/`d_r3`                          → (Control,  Some(R)) — legacy live-D arm
 ///   `a4_d_r3`/`a1_d_r0`/`c_d_r3`/…                → (generator, Some(R)) — layered cell
 /// (No generator name contains the substring `d_r`, so the split is unambiguous.)
@@ -54,8 +54,13 @@ fn parse_condition(s: &str) -> Option<(Condition, Option<RetryBudget>)> {
         "a3" => Condition::A3,
         "a4" => Condition::A4,
         "c" => Condition::C,
-        "c_closed" | "cplus" => Condition::CClosed,
-        "c_guided" | "cguided" => Condition::CGuided,
+        // GCD ladder L2 (guided): canonical `c_l2_guided`; OLD code names `c_closed`/`cplus` kept as
+        // aliases → same variant + same seed base → the paused blast resumes via its original command.
+        "c_l2_guided" | "c_closed" | "cplus" => Condition::CL2Guided,
+        // GCD ladder L3 (closed): canonical `c_l3_closed`; OLD code names `c_guided`/`cguided` aliased.
+        "c_l3_closed" | "c_guided" | "cguided" => Condition::CL3Closed,
+        // ADR 0004 forced-denylist sealed-sink (separate steelman run; no gate, attack-only).
+        "c_sealed" => Condition::CSealed,
         _ => return None,
     };
     Some((condition, gate))
@@ -74,8 +79,11 @@ fn cond_seed_base(s: &str) -> u64 {
         "d_r0" => 6,
         "d_r1" => 7,
         "d_r3" => 8,
-        "c_closed" | "cplus" => 9,
-        "c_guided" | "cguided" => 10,
+        // L2/L3 seed bases keyed off BOTH the canonical names and the old aliases → identical seeds
+        // (hence identical results / resume identity) whichever token a command uses.
+        "c_l2_guided" | "c_closed" | "cplus" => 9,
+        "c_l3_closed" | "c_guided" | "cguided" => 10,
+        "c_sealed" => 11,
         // Layered factorial cells (e.g. a4_d_r3) get a stable, distinct base via FNV-1a,
         // offset to 100..999 so they never collide with the hand-assigned 0..9 above.
         _ => {
@@ -442,9 +450,9 @@ async fn run_condition(
 }
 
 async fn run_trial(client: &reqwest::Client, victim: &str, spec: &TrialSpec) -> Result<TrialRecord, String> {
-    // C-guided (ADR 0003): send the TRUSTED authorized policy — the requested-set for attacks, the
-    // expected call for legit tasks — both derived from the task IDENTITY, never from skill content.
-    let guided_policy: Option<Vec<GuidedAction>> = (spec.condition == Condition::CGuided).then(|| match spec.kind {
+    // L3 closed (CL3Closed, ADR 0003): send the TRUSTED authorized policy — the requested-set for
+    // attacks, the expected call for legit tasks — both derived from the task IDENTITY, never from skill content.
+    let guided_policy: Option<Vec<GuidedAction>> = (spec.condition == Condition::CL3Closed).then(|| match spec.kind {
         CorpusKind::Attack => spec.requested.iter().map(|r| GuidedAction { tool: r.tool.clone(), param: r.param.clone() }).collect(),
         CorpusKind::Legitimate => spec.expected.iter().map(|(t, p)| GuidedAction { tool: t.clone(), param: p.clone() }).collect(),
     });
@@ -655,7 +663,20 @@ mod tests {
     #[test]
     fn parse_plain_generator_has_no_gate() {
         assert_eq!(parse_condition("a4"), Some((Condition::A4, None)));
-        assert_eq!(parse_condition("c_closed"), Some((Condition::CClosed, None)));
+        assert_eq!(parse_condition("c_l2_guided"), Some((Condition::CL2Guided, None)));
+    }
+
+    #[test]
+    fn parse_c_sealed_has_no_gate_and_distinct_seed() {
+        assert_eq!(parse_condition("c_sealed"), Some((Condition::CSealed, None)));
+        assert_eq!(cond_seed_base("c_sealed"), 11);
+    }
+
+    #[test]
+    fn ladder_aliases_resolve_to_canonical_variant_and_seed() {
+        assert_eq!(parse_condition("c_closed").unwrap().0, parse_condition("c_l2_guided").unwrap().0);
+        assert_eq!(parse_condition("c_guided").unwrap().0, Condition::CL3Closed);
+        assert!(cond_seed_base("c_closed") == cond_seed_base("c_l2_guided") && cond_seed_base("c_guided") == cond_seed_base("c_l3_closed"));
     }
 
     #[test]
