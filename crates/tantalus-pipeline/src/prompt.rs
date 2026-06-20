@@ -42,10 +42,13 @@ impl PromptAssembler {
 
     pub fn assemble_with_condition(&self, round: Round, enabled_skills: &[&Skill], condition: Condition) -> String {
         let template = match (round, condition) {
-            // Experiment Condition C: grammar is the SOLE independent variable, so C uses the
-            // neutral Control prompt — NOT the round2 jailbreak template. (The grammar still
-            // forces valid tool-call JSON regardless of prompt; Control already lists all tools.)
-            (Round::Two, Condition::C | Condition::CL2Guided | Condition::CL3Closed) => &self.control_template,
+            // Grammar conditions (L1 blind C, L2 guided, L3 closed, and the ADR-0004 forced-sealed
+            // CSealed): grammar is the SOLE independent variable, so they use the neutral Control
+            // prompt — NOT the round2 jailbreak template — and therefore inherit any CONTROL_TEMPLATE
+            // override (e.g. the steelman's malicious system prompt) identically to Condition Control,
+            // keeping the c_sealed↔control A/B contrast clean. (The grammar still forces valid
+            // tool-call JSON regardless of prompt; Control already lists all tools.)
+            (Round::Two, Condition::C | Condition::CL2Guided | Condition::CL3Closed | Condition::CSealed) => &self.control_template,
             // The /chat interactive Round-2 game keeps its compliance-maximizing prompt.
             (Round::Two, _) => &self.round2_template,
             // Defensive-prompt conditions get the RFC 2119 security policy.
@@ -115,6 +118,13 @@ mod tests {
         assert!(!prompt.contains("MUST NOT transmit"));
         assert!(!prompt.contains("override"));
         assert!(prompt.contains("respondToUser"));
+    }
+
+    #[test]
+    fn csealed_round2_uses_control_prompt_not_jailbreak() {
+        let a = PromptAssembler::new();
+        let sealed = a.assemble_with_condition(Round::Two, &[], Condition::CSealed);
+        assert!(!sealed.contains("CONTROLLED SECURITY TESTING") && sealed == a.assemble_with_condition(Round::Two, &[], Condition::C));
     }
 
     #[test]
