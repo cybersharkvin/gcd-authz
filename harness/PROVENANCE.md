@@ -52,10 +52,20 @@ Out-of-band provenance for the result DBs cited in `docs/findings_report.md`. **
 
 **Not applicable / off for all three runs.** MTP (multi-token prediction / speculative) was a *llama.cpp*-era setting; none of these vLLM launches enabled speculative decoding. The prereg's open "MTP on vs off" decision (§12) pertained to the llama.cpp anchor era and is moot for the vLLM confirmatory runs (recorded here so the §6/§10 MTP-logging requirement is satisfied: MTP = off/N-A).
 
+## Resolved checkpoint revisions (HF snapshot commits, recorded 2026-06-22)
+
+Read from `refs/main` of each model's HF cache snapshot (Host A `/home/dev/hf_cache`; Mistral from Host B `/REDACTED-cache`). DB `model_id` is left as the served alias; this is the alias → repo@revision map.
+
+| DB / role | repo | alias (`model_id`) | resolved revision |
+|---|---|---|---|
+| blast — NVFP4 | `kaitchup/Qwen3-1.7B-NVFP4` | `qwen3-1p7b-nvfp4` | `2ab3a24a4875ea3de8161acd01ee29d0aa3da35b` |
+| blast — BF16 | `Qwen/Qwen3-1.7B` | `qwen3-1p7b-bf16` | `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e` |
+| mistral anchor | `mistralai/Mistral-Small-4-119B-2603-NVFP4` | `mistral-119b` | `d57a94c74a961e1f9b489b8b3e792923ca29149b` |
+| steelman | `lyf/Huihui-Qwen3.5-27B-abliterated-NVFP4` | `q35` | `49755cdf44719a26807f01b3d80dcda79fad7b75` |
+
 ## Still TODO (before any of these is paper-grade)
 
-1. **HF checkpoint revision hashes** — record the exact resolved snapshot commit for each model repo (`huggingface-cli download <repo> --revision <hash>` or read the cache snapshot dir), not just the repo ID. Repos: `kaitchup/Qwen3-1.7B-NVFP4`, `Qwen/Qwen3-1.7B`, `mistralai/Mistral-Small-4-119B-2603-NVFP4`, `lyf/Huihui-Qwen3.5-27B-abliterated-NVFP4`.
-2. **Re-stamp future runs at the source** — set `ENGINE_COMMIT` (image digest) and a real `LLM_MODEL` (repo@revision, not a bare alias) on the victim env so the trial rows carry provenance natively. Launch checklist:
+1. **Re-stamp future runs at the source** — set `ENGINE_COMMIT` (image digest) and a real `LLM_MODEL` (repo@revision, not a bare alias) on the victim env so the trial rows carry provenance natively. Launch checklist:
    - `ENGINE_COMMIT=$(docker inspect --format '{{index .RepoDigests 0}}' <engine-image>)`
    - `LLM_MODEL=<repo>@<resolved-revision>`
    - verify post-run: `sqlite3 <db> "SELECT DISTINCT engine_commit, model_id FROM trials;"` ≠ `unknown`.
