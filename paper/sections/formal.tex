@@ -1,0 +1,70 @@
+\section{Formal Core: A Soundness Sketch}
+\label{sec:formal}
+
+Beyond Galloway's empirical block rate \cite{galloway2020}, this work adds a cost/economics axis and --- the subject of this section --- a \emph{soundness theorem}. Galloway could report only that some fraction of malware was stopped --- a finite measurement that licenses no statement about the next, unseen sample. Grammar-constrained decoding, by contrast, admits a class-level guarantee: under the conditions stated below, an emitted action provably lies within the authorized set, \emph{independent of the model's logits} and therefore against a fully injection-compromised model. This section states that guarantee precisely and is scrupulous about its scope and its trusted computing base (TCB). We present it as a \emph{sketch}: the fully detailed proof, with the tokenizer-lifting argument made first-class, is a companion artifact (\texttt{docs/proof.md}, in preparation). We do \emph{not} claim a complete mechanized proof here.
+
+\subsection{Setup}
+\label{sub:formal-setup}
+
+Fix a tokenizer with finite vocabulary \(V\). A generation is a finite sequence of tokens \(t_1 t_2 \cdots t_n \in V^{*}\). For an authenticated principal with scope \(s\), the \(G_s\) compiler (the novel artifact, Section~\ref{sec:method}) turns \(s\) into a context-free grammar \(G_s\) whose terminals are tokenizer tokens; authorized accounts, endpoints, channels, and paths become ground terminals, and out-of-scope parameters are absent from the language \(L(G_s) \subseteq V^{*}\). We write \(\mathrm{Authorized}(s) \subseteq V^{*}\) for the set of token sequences whose decoded action is permitted for principal \(s\).
+
+The constrained decoder applies, at each decode step \(i\), a \emph{grammar mask} computed from the prefix \(t_1 \cdots t_{i-1}\) already emitted. The mask drives to zero the probability of every token that cannot extend that prefix to a valid prefix of some string in \(L(G_s)\), \emph{before} sampling. Formally, let \(\mathrm{Ext}_{G_s}(p) \subseteq V\) denote the set of tokens \(t\) such that \(p\,t\) is a prefix of some member of \(L(G_s)\). The decoder restricts the support of the next-token distribution at step \(i\) to \(\mathrm{Ext}_{G_s}(t_1 \cdots t_{i-1})\), with the end-of-sequence token permitted exactly when the prefix is itself in \(L(G_s)\). This is the standard push-down-automaton mask realized by xgrammar \cite{dong2024xgrammar} and llama.cpp GBNF \cite{gerganov_llamacpp}, in the same lineage as guidance-style constrained generation \cite{willard2023}. The enforcement locus is the \emph{sampler}, not the model: the transformer always computes a full logit distribution over \(V\), and under injection it may assign an arbitrarily high logit to a forbidden token; the mask is applied to that distribution prior to any sampling decision.
+
+\subsection{Mask Soundness}
+\label{sub:formal-lemma}
+
+\begin{lemma}[Mask soundness]
+\label{lem:mask-soundness}
+Fix \(G_s\) and run the constrained decoder above. For \emph{any} sequence of logit distributions over \(V\) produced by the model and \emph{any} sampler --- greedy \(\arg\max\), top-\(k\), top-\(p\) (nucleus), or temperature sampling at any temperature --- every token drawn at step \(i\) lies in \(\mathrm{Ext}_{G_s}(t_1 \cdots t_{i-1})\). Consequently, any generation the decoder reports as complete is a member of \(L(G_s)\).
+\end{lemma}
+
+\begin{proof}[Proof sketch]
+At step \(i\) the mask sets the probability of every token outside \(\mathrm{Ext}_{G_s}(t_1 \cdots t_{i-1})\) to zero before sampling. Each of the named samplers selects a token from the support of the (renormalized) distribution it is given: \(\arg\max\) returns a token of maximal probability, which has nonzero probability; top-\(k\), top-\(p\), and temperature reweighting all preserve the zero set --- a token assigned probability zero remains unselectable under any of them. Hence the drawn token has nonzero post-mask probability and therefore lies in \(\mathrm{Ext}_{G_s}(\cdot)\). This holds at every step regardless of what the logits were, since the argument never inspects the logit values, only the support after masking. By induction over the \(n\) steps, the prefix invariant ``\(t_1 \cdots t_i\) is a valid prefix of \(L(G_s)\)'' is maintained, and completion is admitted only when the prefix is in \(L(G_s)\); therefore the completed generation is a member of \(L(G_s)\). A complete treatment, including the end-of-sequence condition and the tokenizer lift of Assumption~\ref{asm:tokenizer-lift}, is deferred to \texttt{docs/proof.md}.
+\end{proof}
+
+The quantification ``for any logit distribution'' is the load-bearing phrase: the lemma never assumes the logits are benign, so it covers the adversarial case in which a prompt injection has driven the model to \emph{intend} a forbidden action. Logits encode intent and are uncontrolled; generated tokens are constrained.
+
+\subsection{The Soundness Theorem}
+\label{sub:formal-theorem}
+
+\begin{theorem}[Action-integrity soundness]
+\label{thm:soundness}
+Let \(\textit{emitted}\) be any completed generation of the constrained decoder for principal scope \(s\), and suppose the compiled grammar satisfies \(L(G_s) \subseteq \mathrm{Authorized}(s)\) (Assumption~\ref{asm:tcb}). Then
+\begin{equation}
+\label{eq:soundness}
+\textit{emitted} \in L(G_s) \subseteq \mathrm{Authorized}(s),
+\end{equation}
+so the emitted action is within the authorized set --- independent of the logits, hence against a fully injection-compromised model.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+By Lemma~\ref{lem:mask-soundness}, \(\textit{emitted} \in L(G_s)\) for any logits and any sampler. By Assumption~\ref{asm:tcb}, \(L(G_s) \subseteq \mathrm{Authorized}(s)\). Compose the two inclusions to obtain \eqref{eq:soundness}.
+\end{proof}
+
+\paragraph{What this licenses, and what it does not.} Theorem~\ref{thm:soundness} is a statement about \emph{every} producible output of the mechanism, not about a measured fraction of them. It is therefore the one asset that supports a class-level \emph{eliminates-by-construction} claim --- out-of-scope actions are ungenerable --- which no finite sample could establish however large. This is the formal step beyond Galloway, whose contribution was an empirical block rate alone \cite{galloway2020}. The empirical samples reported in Section~\ref{sec:results} (including \(852{,}000\) GCD attack trials at \(0\) bypass, of which the \(2{,}000\) steelman trials are partly true-by-construction) do \emph{not} carry the ``eliminates'' claim; they show that behavioral controls genuinely leak at scale (Section~\ref{sec:res-mistral}) and that the implementation matches the theory. Proof and evidence stay in separate lanes.
+
+\subsection{Trusted Computing Base and Caveats}
+\label{sub:formal-tcb}
+
+The guarantee is conditional, and we state the conditions honestly.
+
+\begin{assumption}[Compiler / allowlist correctness --- the TCB]
+\label{asm:tcb}
+The \(G_s\) compiler is trusted: Theorem~\ref{thm:soundness} holds \emph{iff} the compiled language satisfies \(L(G_s) \subseteq \mathrm{Authorized}(s)\). If the allowlist is wrong --- it admits a string whose decoded action is not in fact permitted --- the theorem's conclusion follows from a false premise and provides no protection.
+\end{assumption}
+
+The compiler is therefore the trusted computing base, exactly as the policy engine is the TCB in any positive-security control. We mitigate this dependency, but do not eliminate it, with two independent checks: (a) an automated \emph{acceptance oracle} that validates each compiled grammar against the target engine before any run (and revalidates per engine; Section~\ref{sec:method}); and (b) an \emph{executor re-validation backstop} that re-checks the decoded action against the same allowlist at the point of execution. The backstop is itself a Condition-D-class corrective check (the post-parse allowlist gate, \texttt{tantalus\_grammar::allowlist\_verdict}), deployed here as defense-in-depth that \emph{complements} the constitutive control rather than contradicting it: the same post-parse check is the recommended corrective backstop for \(C\) (Section~\ref{sec:discussion}). C and D are policy-equivalent over \(L(G_s)\); they differ in enforcement completeness, and using one to guard the TCB of the other is consistent with that framing.
+
+\begin{assumption}[Sound tokenizer lift]
+\label{asm:tokenizer-lift}
+The grammar \(G_s\) is authored at the character level (URLs, paths, channel identifiers), but the mask of Section~\ref{sub:formal-setup} operates over the \emph{token} language. Correctness requires a sound lift from the character-level grammar to the tokenizer token language --- the token-level language must decode to exactly the intended character-level language, with no over- or under-approximation introduced by token boundaries.
+\end{assumption}
+
+The tokenizer lift is an engineering obligation, not a free assumption: a faulty lift can admit a token sequence that decodes to an out-of-scope string, silently violating Assumption~\ref{asm:tcb} one layer down. We discharge it operationally, per engine, via the acceptance oracle (it asserts that the engine actually constrains output to the intended language on probe inputs, catching silent-ignore and tokenizer-misalignment footguns), and we make it first-class in the companion proof.
+
+\begin{remark}[Scope]
+\label{rem:formal-scope}
+Theorem~\ref{thm:soundness} covers \emph{action integrity over enumerable-sink tools} --- structured tool calls whose authorized parameter values form an enumerable language (endpoints, channels, paths, message identifiers). It does \emph{not} cover free-text confidentiality through parameters that must remain unconstrained, such as \texttt{searchFiles.query} or \texttt{respondToUser.message}: a free-text field is, by construction, not narrowed by \(G_s\), so the theorem makes no claim about what flows through it. Confidentiality through unconstrained free-text channels is Paper-2 scope, addressed there by complementary measures (enumerable-response closure for the enumerable-response agent class, and layered detection). The single-subject realization (Tantalus) makes this a feasibility result for the covered class, not a population-level universality claim.
+\end{remark}
+
+In short: against an adversary who fully controls the logits, GCD's positivity is \emph{enforcement-deep} --- it reaches all the way down to the generative act --- conditional on a correct allowlist and a sound tokenizer lift, both of which we guard with independent, defense-in-depth checks. The detailed proof, with these two obligations promoted to discharged lemmas, is the companion artifact \texttt{docs/proof.md} (in preparation).

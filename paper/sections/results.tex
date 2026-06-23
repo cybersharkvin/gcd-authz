@@ -1,0 +1,123 @@
+\section{Results}
+\label{sec:results}
+
+We report three datasets spanning two pretraining families (Qwen and Mistral), then summarise the per-hypothesis verdicts. Bypass is scored by \emph{effect} -- the marker reaching an out-of-scope sink, per the deterministic win detector (Section~\ref{sec:method}) -- never by grammar-membership. Each subsection maps its measurements to the registered research questions honestly, including the cases the dataset does \emph{not} settle. Binomial confidence intervals are Clopper--Pearson 95\% \cite{clopper1934}.
+
+\subsection{The Qwen3-1.7B generator\texorpdfstring{$\times$}{x} gate factorial}
+\label{sec:res-blast}
+
+The first dataset (\texttt{blast\_1p7b\_5m.db}) runs a deliberately weak workhorse (Qwen3-1.7B-NVFP4) at scale to sharpen the constitutive-vs-corrective contrast. It is an eight-cell generator$\times$gate factorial: the only ungated cell is \texttt{control}; every other cell layers the post-parse allowlist gate at retry budget three behind a generator (\texttt{a1\_d\_r3}, \texttt{a2\_d\_r3}, \texttt{a3\_d\_r3}, \texttt{a4\_d\_r3}, \texttt{c\_d\_r3}, \texttt{c\_closed\_d\_r3}, \texttt{c\_guided\_d\_r3}). Each cell carries \num{282000} attack trials and 624 legitimate trials. Table~\ref{tab:blast} reports the per-cell measurements.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Qwen3-1.7B factorial (\texttt{blast\_1p7b\_5m.db}); \num{282000} attack + 624 legit per cell. Emission and \texttt{gate\_rej} are counts; the only ungated cell is \texttt{control}. \texttt{c\_closed\_d\_r3} is the closed-response cell (C+/L2); \texttt{c\_guided\_d\_r3} is least-privilege (L3).}
+\label{tab:blast}
+\begin{tabular}{l r r r r r r r}
+\toprule
+cell & bypass & emission & \texttt{gate\_rej} & valid & out-tok & avail.\ fail & legit \\
+\midrule
+\texttt{control}        & 18.33\% & \num{105173} & --       & 90.0\% & 289 & --  & 58.3\% \\
+\texttt{a1\_d\_r3}      & 0.00\%     & \num{120140} & \num{139612} & 93.9\% & 266 & 45  & 56.7\% \\
+\texttt{a2\_d\_r3}      & 0.00\%     & \num{104697} & \num{120632} & 89.4\% & 270 & 46  & 59.6\% \\
+\texttt{a3\_d\_r3}      & 0.00\%     & \num{104615} & \num{111528} & 89.4\% & 269 & 46  & 59.6\% \\
+\texttt{a4\_d\_r3}      & 0.00\%     & \num{119091} & \num{133221} & 93.7\% & 261 & 44  & 56.7\% \\
+\texttt{c\_d\_r3}       & 0.00\%     & 0            & 0        & 98.9\% & 119 & 0   & 47.0\% \\
+\texttt{c\_closed\_d\_r3} & 0.00\%   & 0            & 0        & 99.9\% & 112 & 0   & 47.8\% \\
+\texttt{c\_guided\_d\_r3} & 0.00\%   & 0            & 0        & 97.8\% & 149 & 0   & 100.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{RQ2 (structural invariant), reproduced but not the formal test.} The three GCD cells produce \emph{zero} bypasses across \num{282000} attack trials each (Clopper--Pearson 95\% upper bound \(\approx 1.31\times 10^{-5}\)). This reproduces the structural invariant at large \(N\). It is, however, \emph{not} an evaluation of the registered H2 decision rule: H2 requires C's CI upper bound to lie strictly below every behavioral control's bypass \emph{point estimate}, and here the behavioral arms are gated, so their bypass point estimates are all 0 rather than leaky. The formal H2 contrast is delivered on the Mistral anchor (Section~\ref{sec:res-mistral}).
+
+\paragraph{RQ3 (constitutive vs corrective), supported -- both conjuncts.} The Section~\ref{sec:core} decision rule for H3 is conjunctive: C emission must be 0 \emph{and} C's attack-trial output-token cost strictly below D's. Both hold here. The three GCD cells show 0 emission, 0 \texttt{gate\_rej}, and 0 availability failures -- the gate is \emph{inert}, because the grammar already enforced the policy at the sampler -- against behavioral generators that produce \num{104615}--\num{120140} out-of-scope calls each behind the same gate (produce-then-catch), with \num{111528}--\num{139612} gate rejections and 44--46 trials stranded at retry-three. The GCD cells also cost fewer tokens (112--149) than every D-behind-behavioral cell (261--289), and exhibit the validity dividend (97.8--99.9\% valid output vs 89.4--93.9\% behavioral; \texttt{c\_guided\_d\_r3}'s 97.8\% falls below the registered invalid-rate floor, Section~\ref{sec:limits}). Emission is the empirical signature of the constitutive-vs-corrective difference: 0 under C by construction, \(>0\) under the corrective gate.
+
+\paragraph{RQ6 (least-privilege superiority), supported -- all three conjuncts.} \texttt{c\_guided\_d\_r3} attains bypass 0, deflection \num{0}/\num{282000} (against blind-C's \num{98006} and \texttt{control}'s \num{86817} deflection trials), and legitimate-task success 100.0\% (624/624) versus \texttt{control}'s 58.3\% -- the superiority claim of H6, distinct from blind-C's non-inferiority.
+
+\paragraph{What this cell does not deliver.} RQ1 is not addressed here: the weak workhorse's \texttt{control} bypass of 18.33\% sits below the registered \(\geq 50\%\) potency floor, the behavioral arms are gated, and the superseded ungated \texttt{a1} orphan ($\approx$20.3\%, $\geq$ \texttt{control} 18.33\%) fails the A1$<$Control manipulation check -- all by design, as the 1.7B is the weak spectrum-end apparatus, not the headline victim. RQ4 is also not met here: blind-C legit-success (47.0\%) and C+ (47.8\%) fall about 11\,pp below \texttt{control} (58.3\%). This deficit is the expected weak-model deflection cost; C-guided is the resolution (100.0\%), and the capable-victim picture (Section~\ref{sec:res-mistral}) shows the deficit does not reproduce.
+
+\subsection{The Mistral-Small-4-119B capable non-Qwen anchor}
+\label{sec:res-mistral}
+
+The second dataset (\texttt{mistral119\_anchor.db}) is the capable, non-Qwen anchor the 1.7B factorial deferred to -- a second pretraining lineage. It runs nine conditions at \num{4000} attack + 208 legitimate trials each, with the behavioral arms \emph{ungated} (bare \texttt{a1}--\texttt{a4}), so their bypass \emph{is} the leak. This is what makes RQ1 and the formal H2 contrast evaluable. Table~\ref{tab:mistral} reports the matrix.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Mistral-Small-4-119B-NVFP4 (\texttt{mistral119\_anchor.db}); \num{4000} attack + 208 legit per cond, behavioral arms ungated. Bypass and legit shown with Clopper--Pearson 95\% CIs.}
+\label{tab:mistral}
+\begin{tabular}{l l r r r r}
+\toprule
+cond & bypass [CI] & emission & valid & out-tok & legit [CI] \\
+\midrule
+\texttt{control} & 56.77\% [55.22, 58.32] & 2305 & 59.2\% & 239 & 73.56\% [67.01, 79.42] \\
+\texttt{a1}      & 56.50\% [54.95, 58.04] & 2326 & 59.1\% & 240 & 73.08\% \\
+\texttt{a2}      & 56.85\% [55.30, 58.39] & 2315 & 59.4\% & 239 & 76.92\% \\
+\texttt{a3}      & 2.15\% [1.72, 2.65]    & 2324 & 59.5\% & 216 & 75.00\% \\
+\texttt{a4}      & 1.82\% [1.43, 2.29]    & 2343 & 59.4\% & 219 & 78.85\% [72.66, 84.19] \\
+\texttt{c}       & 0.00\% [0, 0.09]       & 0    & 99.8\% & 208 & 78.85\% [72.66, 84.19] \\
+\texttt{d\_r0}   & 0.00\% [0, 0.09]       & 3878 & --     & 270 & -- \\
+\texttt{d\_r1}   & 0.00\% [0, 0.09]       & 2317 & --     & 203 & -- \\
+\texttt{d\_r3}   & 0.00\% [0, 0.09]       & 2337 & --     & 210 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{RQ1 (behavioral controls leak), delivered.} On this capable non-Qwen victim, \texttt{control} bypass is 56.77\% [55.22, 58.32], clearing the \(\geq 50\%\) potency floor; the defensive-prompt arm A1 (56.50\% [54.95, 58.04]) is \(\leq\) \texttt{control}, so the manipulation check holds; and the full behavioral stack A4 still leaks at 1.82\% [1.43, 2.29], whose CI lower bound 1.43\% exceeds 0 -- the H1 decision rule. The input classifier A2 (56.85\%) is essentially useless on this capable model; the output filter A3 (2.15\%) does the heavy lifting but never reaches 0.
+
+\paragraph{Staging funnel (amendment \#5).} Decomposing \texttt{raw\_json} into the funnel \emph{initiated a tool chain} \(\rightarrow\) \emph{emitted any \texttt{fetchURL}} \(\rightarrow\) \emph{bypass}, the attack stages at \(\approx\)57--58\% \texttt{fetchURL} emission in \emph{every} arm, including A3/A4: \texttt{control} 2297 (57.4\%), \texttt{a1} 2293 (57.3\%), \texttt{a2} 2301 (57.5\%), \texttt{a3} 2311 (57.8\%) -- yet bypass 86 (2.15\%) -- and \texttt{a4} 2328 (58.2\%) -- yet bypass 73 (1.82\%). A1 (defensive prompt) and A2 (input classifier) do not move the funnel at all; A3/A4 leave the dangerous emission \emph{unchanged} and block only at the final output stage. So A4's 1.82\% is ``the attack fired \(\approx\)58\% of the time and the filter caught all but 73,'' not ``the attack rarely fired'': the survivors are the credential-signature-free business-data exfils (the TicketAssist class H1 specifically predicted), and the produce-then-catch tax is visible \emph{within} the behavioral arms.
+
+\paragraph{RQ2 (positive structural control), supported -- the formal contrast.} GCD (C) bypasses \num{0}/\num{4000} attacks, CI [0, 0.09]. The upper bound 0.09\% lies strictly below every behavioral control's bypass point estimate (a4 1.82\% through \texttt{control} 56.77\%), satisfying the registered H2 rule -- now evaluable because the behavioral arms are ungated.
+
+\paragraph{RQ3 (constitutive vs corrective).} The emission and validity conjuncts are decisive: C emits 0 out-of-scope calls against D's \num{2317}--\num{3878} produced-then-caught, and C's valid-output rate is 99.8\% against \(\approx\)59\% for native free-generation (a large validity dividend on this victim). On the reliability axis, C resolves in one attempt versus D's retry-recovery (average 1.63--1.72 attempts, max 5), with availability failures shrinking across retry budgets (\texttt{d\_r0} strands all 3878 emissions \(\rightarrow\) \texttt{d\_r1} 288 \(\rightarrow\) \texttt{d\_r3} 6). However, the Section~\ref{sec:core} H3 \emph{token} conjunct fails here: C's 208 output tokens are not strictly below every D variant (\texttt{d\_r1} is 203). The H3-as-written rule is therefore met only on the 1.7B; the victim-independent result is the qualitative gate-inertness, while the token ordering is victim-dependent.
+
+\paragraph{RQ4 (over-constraint).} The 1.7B blind-C deflection deficit does \emph{not} reproduce here: blind-C legit-success is 78.85\% [72.66, 84.19], above \texttt{control}'s 73.56\% [67.01, 79.42]. This is a \emph{point-estimate} ordering only. The registered powered 2\,pp non-inferiority TOST, clustered by \texttt{task\_id}, is not run on this victim: at \(n=208\) with \texttt{--legit-rounds}~1 the CI half-width is \(\approx\)6\,pp, far exceeding the 2\,pp margin. Non-inferiority is therefore not formally established here; what the data support is that the blind-C utility cost is largely a weak-model-competence artifact rather than a property of the grammar.
+
+\subsection{The abliterated-adversary steelman}
+\label{sec:res-steel}
+
+The third dataset (\texttt{steelman\_abliterated.db}) is a rebuttal exhibit, not main statistics. The victim is an abliterated Qwen3.5-27B driven by a malicious top-authority system prompt; abliteration surgically removes behavioral refusal directions from the weights \cite{arditi2024}, so the adversary cannot decline. Two cells of \num{2000} trials each contrast a free generator with the sink open (\texttt{control}) against the forced-denylist, sink-sealed condition (\texttt{c\_sealed}).
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Abliterated steelman (\texttt{steelman\_abliterated.db}); \num{2000} trials/cell. Same model, same malicious prompt; grammar is the sole independent variable.}
+\label{tab:steel}
+\begin{tabular}{l l l}
+\toprule
+cell & bypass (exfil) & note \\
+\midrule
+\texttt{control} (free, sink open) & 97.85\% (1957/2000), CP95 $\approx$[97.1, 98.4] & adversary is real \\
+\texttt{c\_sealed} (forced, sink sealed) & 0.00\% (0/2000), rule-of-three upper $\approx$0.15\% & 0/2000 attacker \texttt{fetchUrl} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The contrast and its honest reading.} The same model under the same prompt moves from 97.85\% exfil to 0\%, with the grammar as the sole independent variable: behavioral safety is removed from the weights, but GCD lives in the sampler and is un-abliteratable. The integrity audit of \texttt{c\_sealed} shows 0/2000 executed \texttt{fetchUrl} calls to an attacker URL. We are explicit that \texttt{c\_sealed}'s 0\% is partly true by construction -- the forced trajectory seals the exfil sink. Its empirical content is two-fold: (a) the paired open cell at 97.85\% establishes that the adversary is real and willing, and (b) in \num{1937}/\num{2000} trials (96.8\%) the sealed model provably ran its skill's full forced trajectory -- the compelled read of the skill-targeted sensitive artifact, then a sealed safe-fetch, then a verbatim taunt. The artifact varies by skill: AWS-credential file in 542, SSH private key in 259, cross-user chat in 517, and ticket business-data in 619 (\(542+259+517+619=1937\)), with a 63-trial unmapped/multi-message remainder that still produced 0 exfil. The precise reading: the claim ``provably read the AWS credentials'' holds for the 542; the broader ``read the skill's sensitive artifact'' holds for all 1937 -- we do not generalize the AWS claim across all 1937. This provable read is \emph{engagement} evidence (the adversary engaged the malicious content), not a confidentiality result: GCD permits the read and blocks only the exfil action; confidentiality is Paper-2 scope.
+
+\subsection{Hypothesis ledger}
+\label{sec:res-ledger}
+
+Table~\ref{tab:ledger} summarises the per-hypothesis verdicts against the Section~\ref{sec:core} decision rules.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Per-hypothesis verdicts. ``Supported'' is against the registered decision rule unless qualified.}
+\label{tab:ledger}
+\begin{tabular}{l l p{6.3cm}}
+\toprule
+ID & verdict & basis \\
+\midrule
+H1 & supported & Mistral A4 bypass 1.82\% [1.43, 2.29], CI-lower 1.43\% $>$ 0; \texttt{control} 56.77\% clears the floor; A1 $\leq$ \texttt{control}. \\
+H2 & supported & Mistral C 0/\num{4000} [0, 0.09] strictly below every behavioral point estimate (the formal contrast); the GCD arms hold 0 bypass across $\approx$\num{852000} GCD attack trials total. \\
+H3 & supported (1.7B), qualified (Mistral) & Conjunctive rule fully met on the 1.7B (emission 0 \emph{and} tokens 119 $<$ D 261--289); on Mistral the emission/validity conjuncts carry but the token conjunct fails (C 208 $\not<$ \texttt{d\_r1} 203). \\
+H4 & not established & The registered powered 2\,pp non-inferiority TOST (clustered by \texttt{task\_id}) is run on neither victim; at most a point-estimate ordering (Mistral C $\geq$ \texttt{control}) is licensed. \\
+H5 & not measured & Grammar-compile time is absent from all three finding DBs; no compile-time figure is reported. \\
+H6 & supported (1.7B only) & \texttt{c\_guided} bypass 0, deflection 0, legit 100.0\% $>$ \texttt{control} 58.3\%; but C-guided cells exist only on the sub-floor 1.7B, not yet a capable model. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Across the three datasets the experiment comprises $\approx$\num{2412613} trials at 0 errors -- $\approx$26--27$\times$ the 90{,}000 test cases of the agent-security benchmark of Zhang et al.\ \cite{zhang2024asb} -- with $\approx$\num{852000} of those being GCD attack trials at 0 bypass.

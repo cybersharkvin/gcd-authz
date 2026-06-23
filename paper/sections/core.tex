@@ -1,0 +1,76 @@
+\section{Constitutive vs.\ Corrective Authorization}
+\label{sec:core}
+
+The post-parse allowlist gate (\texttt{D}) and grammar-constrained decoding (\texttt{C}) are not competing policies. They enforce the \emph{same} positive authorization policy over the \emph{same} language \(L(G_s)\): the set of tool calls a session with authenticated identity \(s\) is permitted to make. Both derive that language from the same artifact --- in our implementation \texttt{D}'s gate and \texttt{C}'s grammar both call \texttt{tantalus\_grammar::allowlist\_verdict}, so the permitted set is identical by construction. What differs is \emph{where the policy sits relative to generation}, and therefore \emph{how completely} it is enforced.
+
+\subsection{Two enforcement loci over one policy}
+\label{sec:core:loci}
+
+\texttt{C} is \textbf{constitutive}: the policy \emph{is} the output space. The grammar \(G_s\) is compiled from the authenticated identity and applied as a token mask at the sampler, driving the probability of every grammar-invalid token to zero \emph{before} sampling. An out-of-scope action is therefore \emph{ungenerable} --- it never exists as an artifact on any surface (output buffer, logs, telemetry, response stream, KV cache). Enforcement is positive security all the way down to the generative act.
+
+\texttt{D} is \textbf{corrective}: an unbounded, default-allow generator first produces a tool call \emph{in full}, after which a separate gate inspects the parsed call and rejects it if it falls outside \(L(G_s)\). \texttt{D} is thus a positive \emph{policy} placed on top of a negative-security \emph{generator}. This re-introduces, one layer down, the three failure modes that positive security exists to escape:
+\begin{enumerate}[leftmargin=2em,itemsep=2pt]
+  \item \textbf{The artifact is produced.} The unauthorized call is generated, costing output tokens and leaving an output-channel artifact --- a confidentiality, forensics, and side-channel surface that exists whether or not the gate later refuses to forward it.
+  \item \textbf{A coverage obligation.} The gate must fire on \emph{every} output path, every downstream consumer, and after every refactor, or the unauthorized call reaches an executor. Coverage is the same completeness obligation that negative-security denylists fail.
+  \item \textbf{A TOCTOU window.} The call exists between generation and the gate's verdict; any consumer reading the buffer in that window observes the unchecked artifact.
+\end{enumerate}
+\texttt{C} has none of these because there is nothing to catch. This is the ported form of Galloway's application-whitelisting argument~\cite{galloway2020}: the structural, positive control forecloses the action rather than detecting it after the fact.
+
+The honest statement of the difference is enforcement-completeness, not security strength. We do \emph{not} claim \texttt{C} blocks the harmful \emph{effect} more reliably than a perfectly-wired allowlist on the calls both see --- against the same set of forwarded actions they are policy-equivalent. We claim that \texttt{C}'s positivity is \emph{enforcement-deep} (it reaches the generative act) while \texttt{D}'s positivity is \emph{policy-deep only} (correct policy, corrective enforcement). The same post-parse check that constitutes \texttt{D} is, accordingly, \texttt{C}'s recommended corrective backstop in the trusted-computing-base discussion (Section~\ref{sec:formal}); it is not a weaker control to be discarded, but a complementary layer that becomes \emph{inert} when nothing unauthorized is ever generated.
+
+\subsection{In-band vs.\ out-of-band}
+\label{sec:core:band}
+
+The behavioral controls (\texttt{a1}, \texttt{a2}) are \textbf{in-band}: a defensive system prompt and an input classifier live in the same input channel the adversary's injection occupies. The injection shares that channel and can override the instruction, which is why indirect prompt injection through trusted data defeats them~\cite{greshake2023}. \texttt{C} is \textbf{out-of-band}: \(G_s\) is compiled from authenticated identity and applied at the sampler --- nowhere the attacker's tokens can reach. Critically, the enforcement locus is the sampler, not the model. The transformer always computes a full logit distribution, and under injection it may assign an arbitrarily high logit to a forbidden token; the grammar mask zeroes that token's probability regardless of the logit, so it cannot be emitted under any decoding strategy (greedy, top-\(k\), top-\(p\), temperature). Logits encode intent and remain uncontrolled; the \emph{generated tokens} are constrained. This in-band/out-of-band split --- not any difference in policy --- is the precise reason one control fails and the other holds.
+
+\subsection{The emission DV: the empirical signature of the distinction}
+\label{sec:core:emission}
+
+The constitutive--corrective difference is not merely conceptual or about efficiency; it is directly observable. We measure it with the \emph{emission} dependent variable.
+
+\begin{definition}[Emission]
+\label{def:emission}
+For an attack trial, \textbf{emission} is the per-trial count of times the unauthorized tool call was actually \emph{produced} by the generator, independent of whether a downstream gate later blocked it. Under constitutive enforcement (\texttt{C}) the unauthorized call is ungenerable, so emission \(= 0\) by construction. Under corrective enforcement (\texttt{D}) the call is produced and merely not forwarded, so emission \(> 0\). The live-gate analogue is \texttt{gate\_rejections}: out-of-scope calls produced-then-caught. Emission is the \emph{primary structural} DV for the constitutive-vs-corrective research question, not a secondary efficiency statistic.
+\end{definition}
+
+Emission separates block-by-construction from block-by-detection at the per-trial level. It is distinct from the primary effect DV (bypass), which is scored by \emph{effect} --- whether a tool call carrying the attack's sentinel marker reaches an out-of-scope sink --- in Galloway's ``did the malware run'' sense~\cite{galloway2020}, never by grammar membership. A trial can have emission \(=1\) and bypass \(=0\) (\texttt{D} produced the call, then caught it); under \texttt{C} both are 0 because the artifact never existed.
+
+\subsection{The generator \texttimes\ gate factorial: the contribution moves off the bypass axis}
+\label{sec:core:factorial}
+
+Because \texttt{D} is a post-parse check on a \emph{parsed} call, it is orthogonal middleware rather than a peer condition: it can be layered over any generator. We therefore treat the allowlist as a factor --- an orthogonal \texttt{gate} modifier with retry budget \(R \in \{0,1,3\}\) (cells \texttt{d\_r0}, \texttt{d\_r1}, \texttt{d\_r3}) --- crossed with each generator (cells such as \texttt{a4\_d\_r3} and \texttt{c\_d\_r3}). The empirical consequence is that \emph{any} generator behind a correct gate achieves \(\approx 0\) bypass. In the \(282{,}000\)-trial-per-cell factorial on the weak workhorse (\texttt{blast\_1p7b\_5m.db}), every gated cell --- behavioral and grammar alike --- records \(0.00\%\) bypass.
+
+The contribution therefore does not live on the bypass axis at all; it lives on the \emph{cost} of reaching that zero. The factorial makes three things visible (Table~\ref{tab:factorial}):
+\begin{enumerate}[leftmargin=2em,itemsep=2pt]
+  \item \textbf{Behavioral generators make the gate work harder.} \texttt{a1\_d\_r3} emits \(120{,}140\) out-of-scope calls and triggers \(139{,}612\) gate rejections; \texttt{a4\_d\_r3} emits \(119{,}091\) with \(133{,}221\) rejections. The defensive layer in front of the gate does not reduce the dangerous emission --- it is produce-then-catch either way.
+  \item \textbf{\texttt{C} makes the gate inert.} The three GCD cells (\texttt{c\_d\_r3}, \texttt{c\_closed\_d\_r3}, \texttt{c\_guided\_d\_r3}) record \(0\) emission, \(0\) gate rejections, and \(0\) availability failures: the grammar already constituted the policy, so the corrective gate has nothing to do.
+  \item \textbf{The cost gap is real but token-cost ordering is victim-dependent.} On the weak workhorse the GCD cells spend \(\approx112\)--\(149\) output tokens versus \(\approx261\)--\(289\) for the behavioral-plus-gate cells, and the GCD validity dividend is large (valid-output \(97.8\%\)--\(99.9\%\) vs.\ \(89.4\%\)--\(93.9\%\)). On the capable Mistral-119B anchor the emission and validity conjuncts carry decisively (\texttt{c} \(0\) emission, \(99.8\%\) valid vs.\ \(\approx59\%\) for native free-generation) but \texttt{c}'s \(208\) output tokens are not strictly below every \texttt{D} variant (\texttt{d\_r1} \(203\)), so the registered conjunctive token-cost criterion is met only on the \(1.7\)B victim. The victim-independent result is the qualitative gate-inertness; the token ordering is victim-dependent.
+\end{enumerate}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{The generator~\texttimes~gate factorial on the weak workhorse (\texttt{blast\_1p7b\_5m.db}, \(n=282{,}000\) attack trials/cell). Every gated cell reaches \(0.00\%\) bypass; the contribution is the \emph{cost} of doing so. Behavioral generators produce \(>10^5\) out-of-scope calls the gate must catch; \texttt{C} emits none, leaving the gate inert.}
+\label{tab:factorial}
+\begin{tabular}{l S[table-format=2.2] S[table-format=6.0] S[table-format=6.0] S[table-format=3.0] S[table-format=2.0]}
+\toprule
+cell & {bypass (\%)} & {emission} & {gate\_rej} & {avg out-tok} & {avail\_fail} \\
+\midrule
+\texttt{control} (ungated) & 18.33 & 105173 & {--} & 289 & {--} \\
+\texttt{a1\_d\_r3} & 0.00 & 120140 & 139612 & 266 & 45 \\
+\texttt{a2\_d\_r3} & 0.00 & 104697 & 120632 & 270 & 46 \\
+\texttt{a3\_d\_r3} & 0.00 & 104615 & 111528 & 269 & 46 \\
+\texttt{a4\_d\_r3} & 0.00 & 119091 & 133221 & 261 & 44 \\
+\texttt{c\_d\_r3} & 0.00 & 0 & 0 & 119 & 0 \\
+\texttt{c\_closed\_d\_r3} & 0.00 & 0 & 0 & 112 & 0 \\
+\texttt{c\_guided\_d\_r3} & 0.00 & 0 & 0 & 149 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+So the slogan ``same policy, enforcement-completeness differs'' is made operational: behavioral controls add cost \emph{in front of} the gate without reducing emission; the gate restores the positive policy but pays a produce-then-catch tax (emission, tokens, retry attempts, and availability stranding at \(R=0\)); and \texttt{C} eliminates that tax by construction, making the corrective layer inert.
+
+\begin{remark}[Reliability is two-sided]
+\label{rem:two-sided}
+Neither enforcement locus is unilaterally superior on reliability. Constitutive enforcement guarantees a one-shot valid in-policy action, but a blind union grammar can silently \emph{deflect} a masked malicious intent into a valid but unrequested in-scope action --- a reliability cost that is reported \emph{against} \texttt{C} (the deflection DV, Section~\ref{sec:method}) and that the per-request least-privilege grammar (\texttt{c\_guided}) drives to \(0\) by construction. Corrective enforcement, conversely, yields an explicit, auditable denial when it strands an action --- a desirable forensic property --- but consumes the turn: at \(R=0\) every produced-then-caught trial terminates in an availability failure, and recovery requires serialized retries. We measure both; we claim neither as dominant.
+\end{remark}
