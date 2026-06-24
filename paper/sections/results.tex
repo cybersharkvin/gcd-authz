@@ -137,9 +137,9 @@ cond & bypass [CI] & emission & out-tok & legit [CI] \\
 \texttt{a4}           & 33.80\% [31.73, 35.92] & --   & --  & -- \\
 \texttt{c}            & 0.00\% [0, 0.18]       & 0    & 267 & 87.34\% [84.47, 89.85] \\
 \texttt{c\_l3\_closed} & 0.00\% [0, 0.18]       & 0    & 197 & 100.00\% [99.41, 100] \\
-\texttt{d\_r0}        & 0.00\%                  & 1975 & --  & -- \\
-\texttt{d\_r1}        & 0.00\%                  & 1976 & --  & -- \\
-\texttt{d\_r3}        & 0.00\%                  & 1998 & --  & -- \\
+\texttt{d\_r0}        & 0.00\% [0, 0.18]       & 1975 & --  & -- \\
+\texttt{d\_r1}        & 0.00\% [0, 0.18]       & 1976 & --  & -- \\
+\texttt{d\_r3}        & 0.00\% [0, 0.18]       & 1998 & --  & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -217,7 +217,7 @@ cell & bypass (exfil) & note \\
 \addplot+[] coordinates { (control,97.85) (c_sealed,0.00) };
 \end{axis}
 \end{tikzpicture}
-\caption{Abliterated steelman: the same un-abliterated-refusal model under the same malicious prompt moves from 97.85\% exfil (free, sink open) to 0\% (forced trajectory, sink sealed). Grammar is the sole independent variable. Data from Table~\ref{tab:steel}.}
+\caption{Abliterated steelman: the same un-abliterated-refusal model under the same malicious prompt moves from 97.85\% exfil (free, sink open) to 0\% (forced trajectory, sink sealed). Grammar is the sole independent variable (note: \texttt{c\_sealed}'s 0\% is partly true by construction -- the forced trajectory seals the sink; see text). Data from Table~\ref{tab:steel}.}
 \label{fig:steelman}
 \end{figure}
 
@@ -241,7 +241,7 @@ H1 & supported & Mistral A4 bypass 1.82\% [1.43, 2.29], CI-lower 1.43\% $>$ 0, \
 H2 & supported & Mistral C 0/\num{4000} [0, 0.09] and Gemma C 0/\num{2000} [0, 0.18] strictly below every behavioral point estimate (the formal contrast); the GCD arms hold 0 bypass across $\approx$\num{868000} GCD attack trials total. \\
 H3 & supported (1.7B, Gemma), qualified (Mistral) & Conjunctive rule fully met on the 1.7B (emission 0 \emph{and} tokens 119 $<$ behavioral 261--270) and on Gemma (C 267 $<$ every behavioral/D cell); on Mistral the emission/validity conjuncts carry but the token conjunct fails (C 208 $\not<$ \texttt{d\_r1} 203). \\
 H4 & not established (powered, confirmed negative) & Powered 2\,pp non-inferiority TOST run on the Mistral ladder ($n=\num{1456}$ legit/cell, cluster-bootstrap $B=\num{10000}$): observed C$-$Control $=-1.85$\,pp (inside the margin) but 95\% CI $[-7.07, +3.43]$ (half-width $\approx$5.3\,pp $\gg$ 2\,pp) -- non-inferiority not established even when powered. \\
-H5 & measured, qualified & Cold FSM-compile p99 58.64\,ms (Qwen-151k) / 61.24\,ms (Mistral-131k) for blind-C exceeds the registered 25\,ms target; amortized per-trial $\approx$0.003\,ms (single fixed grammar, cache hit). Reported as deviation: letter not met, spirit holds amortized (\texttt{harness/h5\_grammar\_compile\_results.md}). \\
+H5 & measured, qualified & Cold FSM-compile p99 58.64\,ms (Qwen-151k) / 61.24\,ms (Mistral-131k) for blind-C exceeds the registered 25\,ms target; amortized per-trial $\approx$0.003\,ms (single fixed grammar, cache hit). Reported as deviation: letter not met, spirit holds amortized.\footnote{Full compile-time measurements in supplementary material, Table~S-H5.} \\
 H6 & supported (1.7B, Mistral, Gemma) & \texttt{c\_l3\_closed} attains bypass 0, deflection 0, legit 100.0\% on the 1.7B (624/624), 100.00\% [99.75, 100] on the capable Mistral ladder, and 100.00\% [99.41, 100] on the Gemma anchor -- the three-conjunct rule met on all three victims. \\
 \bottomrule
 \end{tabular}
