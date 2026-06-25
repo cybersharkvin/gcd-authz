@@ -11,6 +11,8 @@
 - `harness/steelman_abliterated.db` — the abliterated-adversary steelman (Qwen3.5-27B), **4,000 trials** (2,000/cell), 0 errors.
 - `harness/h5_grammar_compile_results.md` — the H5 grammar-compile-time probe (xgrammar, real tokenizers).
 
+**Aggregate scale (five result DBs).** Because each trial is a full multi-turn agent rollout, the experiment is **6,122,392 individual inference calls** (`SUM(json_array_length(raw_json))`, ≈2.49/trial) and **543,699,152 generated output tokens** (`SUM(tokens_predicted)`, ~544 M) across **2,460,677 trials** — plus ≈10 B input tokens (est. ~1,680/call shared prompt, not stored per-trial), ≈27× the 90,000 test cases of ASB-2024. (The earlier three-DB ledger — 5,959,990 calls / 531.9 M tokens — was the blast + Mistral-anchor + steelman subset, before the ladder + Gemma closeout runs.)
+
 ---
 
 ## 0. One-paragraph summary
