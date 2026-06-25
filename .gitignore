@@ -17,3 +17,11 @@ result-*
 # Kept out of this repo's history — it carries Tantalus secrets/private code and is
 # the private upstream, not part of the public artifact.
 /tantalus/
+
+# Proprietary Tantalus UI + example deployment configs. Not needed for
+# experiment reproducibility — the /eval harness and `cargo build` do not
+# reference these. (NB: src/main.rs include_str!'s templates/ + static/ at
+# compile time, so those stay tracked; only the standalone UI / compose
+# bundles are excluded here.)
+/ui_portable/
+/example_compose/
