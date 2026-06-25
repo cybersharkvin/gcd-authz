@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite the paper below."
+title: "gcd-authz: Grammar-Constrained Decoding as a Positive Authorization Control for LLM Agents"
+abstract: >-
+  A self-contained, fully local experiment porting Galloway (2020),
+  "Application Whitelisting as a Malicious Code Protection Control," into the
+  LLM-agent domain: behavioral guardrails (the negative control) versus
+  Grammar-Constrained Decoding with a per-request authorization grammar (the
+  positive control), measured over millions of attack trials on the Tantalus
+  CTF agent across three model lineages.
+type: software
+authors:
+  - given-names: Vince
+    family-names: Ovando
+    email: mrovandoninja@gmail.com
+repository-code: "https://github.com/cybersharkvin/gcd-authz"
+license:
+  - MIT
+  - Apache-2.0
+keywords:
+  - grammar-constrained decoding
+  - LLM agents
+  - prompt injection
+  - authorization
+  - application allowlisting
+  - AI security
+preferred-citation:
+  type: article
+  title: >-
+    Constitutive Authorization at the Decoding Boundary: Grammar-Constrained
+    Decoding as a Positive, Generation-Time Security Control for LLM Agents
+  authors:
+    - given-names: Vince
+      family-names: Ovando
+      email: mrovandoninja@gmail.com
+  year: 2026
