@@ -247,4 +247,4 @@ H6 & supported (1.7B, Mistral, Gemma) & \texttt{c\_l3\_closed} attains bypass 0,
 \end{tabular}
 \end{table}
 
-Across the five datasets the experiment comprises $\approx$\num{2460677} trials at 0 errors -- $\approx$27$\times$ the 90{,}000 test cases of the agent-security benchmark of Zhang et al.\ \cite{zhang2024asb} -- with $\approx$\num{868000} of those being GCD attack trials at 0 bypass across the five datasets.
+Across the five datasets the experiment comprises $\approx$\num{2460677} trials at 0 errors -- $\approx$27$\times$ the 90{,}000 test cases of the agent-security benchmark of Zhang et al.\ \cite{zhang2024asb} -- with $\approx$\num{868000} of those being GCD attack trials at 0 bypass across the five datasets. Because each trial is a full multi-turn agent rollout, those trials decompose into \num{6122392} individual inference calls ($\approx$2.49 per trial) and \num{543699152} generated output tokens in total.
