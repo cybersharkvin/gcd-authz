@@ -166,7 +166,7 @@ All via custom llama.cpp fork with Multi-Token Prediction (MTP) + TurboQuant KV 
 
 - **Nix flake** declares entire experimental apparatus
 - Pins: model weight files (by nix hash), llama.cpp fork commit, GBNF grammar files, attack corpus, evaluation harness, all dependencies
-- `nix run .#experiment` reproduces the full experiment
+- `nix run .#experiment` reproduces the full experiment _(not yet wired — `apps.experiment` is stubbed in `flake.nix`; use the manual path in `README.md` today)_
 - No cloud dependencies, no API keys, no vendor accounts
 - Anyone with equivalent hardware can replicate
 

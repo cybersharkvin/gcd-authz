@@ -2,8 +2,9 @@
 //!
 //! Usage:
 //!   experiment [run] --corpus harness/corpus_full.json --legit-corpus harness/corpus_legitimate.json \
-//!              --db harness/mini.db --rounds-per-condition 200 --concurrency 16 \
+//!              --db harness/mini.db --rounds-per-condition 200 --slots-per-victim 16 \
 //!              --victims http://localhost:3350,http://localhost:3351 --conditions control,a1,a2,a3,a4,c
+//!   (effective concurrency = #victims × --slots-per-victim; there is no --concurrency flag)
 //!   experiment overlay --db harness/mini.db
 //!
 //! D is NOT a live condition: it is derived offline from Control's logged trace

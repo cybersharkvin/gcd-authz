@@ -258,7 +258,7 @@ Per Amaral's Build methodology ("compare against existing systems to verify the 
 
 ## 9. Reproducibility plan
 
-- **Nix flake** declares the entire apparatus; `nix run .#experiment` reproduces end-to-end.
+- **Nix flake** declares the entire apparatus; `nix run .#experiment` reproduces end-to-end. (Status: `apps.experiment` is not yet wired in `flake.nix` — the flake builds the workspace + clippy today; use the manual reproduction path in `README.md`.)
 - Pins: model weights by hash, llama.cpp fork commit, GBNF files, attack corpus, harness, all deps.
 - **No cloud dependencies, no API keys** in the primary study. Anyone with equivalent hardware replicates exactly.
 - Per-trial provenance logged (build, flags, seed, temp) into `TrialResult`.

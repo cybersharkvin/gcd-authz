@@ -53,7 +53,8 @@
 
         # TODO(build step 6/7): wire `nix run .#experiment` to the harness binary,
         # pin model weights by hash + the llama.cpp fork commit (MTP off), and
-        # declare the multi-model llama-server launcher. See docs/PLAN.md.
+        # declare the multi-model llama-server launcher. See the README
+        # "Reproducing the experiment" section for the current manual run path.
         # apps.experiment = flake-utils.lib.mkApp { drv = ...; };
 
         checks.workspace-clippy = craneLib.cargoClippy (commonArgs // {

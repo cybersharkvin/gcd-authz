@@ -145,7 +145,7 @@ Mirrors Galloway's pre-test/post-test/control-group structure: each attack insta
 
 ## 10. Reproducibility commitments (the primary validity concern)
 
-- Inference engine commit, model weights, seeds, temperatures, MTP setting, and flags **pinned** (Nix). `nix run` reproduces the result database on equivalent hardware.
+- Inference engine commit, model weights, seeds, temperatures, MTP setting, and flags **pinned** (Nix). `nix run` reproduces the result database on equivalent hardware. (Status: the Nix `experiment` app is **not yet wired** — `apps.experiment` is stubbed in `flake.nix`; the flake builds the workspace + runs clippy today. Use the manual reproduction path in the repository `README.md`.)
 - Every trial logs: model id, engine commit, MTP setting, seed, temperature, condition, raw model output, parsed/emitted tool call, output tokens, win verdict, timings.
 - Corpus, grammars, the security-neutral base prompt, harness, and analysis code are open and versioned.
 

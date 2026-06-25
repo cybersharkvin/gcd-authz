@@ -6,9 +6,10 @@ result-*
 .direnv/
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 *.db.bak*
 .env
-/harness/experiment/results/
 /models/
 *.gguf
 .DS_Store
@@ -25,3 +26,7 @@ result-*
 # bundles are excluded here.)
 /ui_portable/
 /example_compose/
+
+# Agent working files (memory bank, rules, plans, skills). Not part of the
+# public artifact; untracked so the repo isn't carrying session state.
+/.claude/
