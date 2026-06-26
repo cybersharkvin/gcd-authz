@@ -18,7 +18,10 @@ doi: "10.17605/OSF.IO/S9GU6"
 identifiers:
   - type: doi
     value: "10.17605/OSF.IO/S9GU6"
-    description: "OSF project (archived preprint + code + preregistration)"
+    description: "OSF project (preprint + code + preregistration)"
+  - type: doi
+    value: "10.17605/OSF.IO/J6GFD"
+    description: "OSF registration (immutable timestamped snapshot)"
 license:
   - MIT
   - Apache-2.0

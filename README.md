@@ -2,7 +2,7 @@
 
 **Grammar-Constrained Decoding as a positive, provable per-request authorization control for LLM agents.**
 
-**Preprint (OSF, archived + citable):** [doi.org/10.17605/OSF.IO/S9GU6](https://doi.org/10.17605/OSF.IO/S9GU6)
+**Preprint (OSF, archived + citable):** [doi.org/10.17605/OSF.IO/S9GU6](https://doi.org/10.17605/OSF.IO/S9GU6) · **Immutable registration:** [doi.org/10.17605/OSF.IO/J6GFD](https://doi.org/10.17605/OSF.IO/J6GFD)
 
 An LLM only emits text; every real-world effect is a downstream system executing that text. So the security boundary is the *emittable set itself*. By compiling the authenticated caller's authorization scope into a per-request grammar (`G_s`) and constraining the decoder to it, out-of-scope tool-call parameters become **ungenerable**:
 
