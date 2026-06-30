@@ -9,6 +9,7 @@ result-*
 *.db-shm
 *.db-wal
 *.db.bak*
+harness/*.log
 .env
 /models/
 *.gguf
@@ -30,3 +31,4 @@ result-*
 # Agent working files (memory bank, rules, plans, skills). Not part of the
 # public artifact; untracked so the repo isn't carrying session state.
 /.claude/
+/CLAUDE.md

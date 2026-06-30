@@ -39,7 +39,7 @@ crates/tantalus-harness/   the `experiment` binary: run + overlay + gen-legit
 harness/                   attack + legitimate corpora (result *.db files are gitignored)
 data/classifier/           pre-embedded denylist/allowlist vectors for the A2 input filter
 docs/                      preregistration, methodology, findings_report, proof, ADRs
-docs/research/             THESIS, RESEARCH_DESIGN
+docs/research/             THESIS, RESEARCH_DESIGN (Galloway 2020 is cited in the paper, not vendored)
 paper/                     the LaTeX manuscript
 ```
 

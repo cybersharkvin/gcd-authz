@@ -12,7 +12,7 @@ Out-of-band provenance for the result DBs cited in `docs/findings_report.md`. **
 
 | field | value |
 |---|---|
-| host | Host A — **two engines** (see below); 1 instance/card |
+| host | Host A (2× RTX 5090) — **two engines** (see below); 1 instance/card |
 | engine — NVFP4 rows (2,070,912 trials, 5090s, all cycles) | `vllm/vllm-openai:latest` (v0.23.0) — `sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f`; backfill tag `vllm-openai-0.23.0-oob` |
 | engine — BF16 rows (299,829 trials, **R9700 / ROCm**, early cycles ≤ 2026-06-19 23:01) | `kyuz0/vllm-therock-gfx1201:latest` (v0.22.1rc1) — `sha256:55fa7796374a281e4b77a05cc2f26391d4100a5abb738f77c580ebc3951761e9`; backfill tag `vllm-therock-0.22.1rc1-oob` |
 | grammar backend | xgrammar (both), via `structured_outputs.grammar` |
@@ -25,14 +25,14 @@ Out-of-band provenance for the result DBs cited in `docs/findings_report.md`. **
 
 | field | value |
 |---|---|
-| host | Host B (`vg` = internal-host), 4× RTX 5090, TP=4 |
+| host | Host B (4× RTX 5090), TP=4 |
 | engine image | `mistralllm/vllm-ms4:latest` (from-source vLLM v1, sm120) |
 | **image digest** | `sha256:47b98aa31f2e201dfb57f3c1bf140f03e4ef0298d0cd0a77b62e101d034149bb` |
 | grammar backend | **guidance / llguidance** via `--structured-outputs-config '{"backend":"guidance"}'` (xgrammar rejects the auto-tool-choice LARK grammar — see ADR 0005) |
 | victim model | `mistralai/Mistral-Small-4-119B-2603-NVFP4` (alias `mistral-119b`) |
 | key flags | `--tensor-parallel-size 4 --max-model-len 8192 --gpu-memory-utilization 0.90 --attention-backend TRITON_MLA --max-num-batched-tokens 2048 --enable-auto-tool-choice --tool-call-parser mistral` (NO `--reasoning-parser`); NCCL P2P/SHM **enabled** |
 | victim env | `LLM_BACKEND=vllm LLM_THINKING_KWARG=off`, temp 0.6 |
-| harness link | Host A harness → `SSH tunnel` → engine `:11435` |
+| harness link | harness on Host A reached the engine over an SSH tunnel to `:11435` |
 
 ## `harness/steelman_abliterated.db` — abliterated steelman (4,000 trials)
 
@@ -54,7 +54,7 @@ Out-of-band provenance for the result DBs cited in `docs/findings_report.md`. **
 
 ## Resolved checkpoint revisions (HF snapshot commits, recorded 2026-06-22)
 
-Read from `refs/main` of each model's HF cache snapshot (Host A `/home/dev/hf_cache`; Mistral from Host B `/REDACTED-cache`). DB `model_id` is left as the served alias; this is the alias → repo@revision map.
+Read from `refs/main` of each model's local HF cache snapshot on the host that ran the cell. DB `model_id` is left as the served alias; this is the alias → repo@revision map.
 
 | DB / role | repo | alias (`model_id`) | resolved revision |
 |---|---|---|---|

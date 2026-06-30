@@ -131,7 +131,7 @@ type WorkQueue = Arc<Mutex<VecDeque<TrialSpec>>>;
 type ResultTx = mpsc::UnboundedSender<Result<TrialRecord, String>>;
 
 /// The live worker fleet. `add_victim` is idempotent (registry-gated) and hot-callable, so the
-/// victims-file poller can bring operator's GPUs into the SAME queue mid-run with no restart.
+/// victims-file poller can bring external GPUs into the SAME queue mid-run with no restart.
 #[derive(Clone)]
 struct Fleet {
     queue: WorkQueue,
@@ -188,8 +188,8 @@ async fn worker(url: String, queue: WorkQueue, results: ResultTx, client: Arc<re
 }
 
 /// Re-read `path` every 5s; any new victim URL (blank/`#` lines ignored) that verifies reachable
-/// is hot-added to the fleet. This is the operator hatch: append his tunneled URLs → ≤5s later his
-/// cards pull from the same queue, auto-balanced by speed.
+/// is hot-added to the fleet. This is the hot-add hatch: append tunneled victim URLs → ≤5s later
+/// those cards pull from the same queue, auto-balanced by speed.
 async fn poll_victims_file(path: String, fleet: Fleet) {
     loop {
         if let Ok(contents) = tokio::fs::read_to_string(&path).await {

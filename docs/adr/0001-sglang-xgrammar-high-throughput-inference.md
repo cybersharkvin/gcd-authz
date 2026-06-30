@@ -79,5 +79,5 @@ The 46.7 min was **token volume, not a concurrency limit** — the GPU was satur
 3. Per-family Control-potency floor check still applies before trusting any new victim's leak numbers.
 
 ## Notes
-- Bench artifacts: `/tmp/bsbench/` (`flood_sglang.py`, `bypass_probe2.py`, `r2.gbnf`). Models in `/REDACTED/sglang_models/`.
+- Bench artifacts: `/tmp/bsbench/` (`flood_sglang.py`, `bypass_probe2.py`, `r2.gbnf`). Models in a local models directory.
 - Infra: borrow a 5090 with `docker stop <live-container>` (transient; restart:always does NOT recreate a manually-stopped container — confirmed no supervisor), `docker start` to restore. Map the **live** container via `nvidia-smi --query-compute-apps` → PID → cgroup, not a stale id. Never `docker update` configs (user boundary).
